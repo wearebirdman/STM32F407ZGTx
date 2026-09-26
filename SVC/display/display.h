@@ -34,7 +34,7 @@ typedef enum {
 typedef enum {
     DISP_MSG_ACQUIRE = 0,   /* 接管/换屏（空闲=授予；持有者=会话内切换，均按 param 渲染） */
     DISP_MSG_RELEASE,       /* 归还界面（仅持有者，最后一帧保留） */
-    DISP_MSG_DRAW_CROSS,    /* 动态图元：画十字（仅持有者） */
+    DISP_MSG_DRAW,          /* 动态图元：画点（仅持有者） */
     DISP_MSG_ACK,           /* 应答（仅服务层发送） */
 } DispMsgType_t;
 
@@ -47,19 +47,17 @@ typedef enum {
     DISP_FORBIDDEN,     /* 无权限：非持有者 RELEASE/DRAW */
 } DispResult_t;
 
-/* ==================== 消息体（按值传递，无指针）====================
- * 字段用 uint8_t 而非枚举类型：GCC 下 enum 默认占 4 字节，而消息只需
- * 容纳枚举值（均 <256）。枚举留给 API 参数（类型提示），消息体省 ~16B。 */
+/* ==================== 消息体 ==================== */
 typedef struct {
     uint8_t type;       /* 消息类型 DispMsgType_t */
-    uint8_t screen;     /* ACQUIRE: 目标界面 DispScreen_t */
     uint8_t result;     /* ACK: DispResult_t */
-    uint8_t seq;        /* 请求序号：ACK 配对，用于丢弃过期应答 */
-    uint8_t param;      /* ACQUIRE: 界面状态参数（校准界面: 0=底版 1=成功 2=失败） */
+    uint8_t screen;     /* ACQUIRE: 目标界面 DispScreen_t */
     uint8_t client;     /* 请求方身份 DispClient_t（服务层权限校验依据） */
-    uint16_t x;         /* DRAW_CROSS: 十字中心 */
+    uint8_t seq;        /* 请求序号：ACK 配对，用于丢弃过期应答 */
+    uint8_t param;      /* ACQUIRE: 界面状态参数 */ 
+    uint16_t x;         /* DRAW: 点坐标 */
     uint16_t y;
-    uint16_t color;     /* DRAW_CROSS: 颜色 */
+    uint16_t color;     /* DRAW: 颜色 */
 } DispMsg_t;
 
 _Static_assert(sizeof(DispMsg_t) <= 32, "DispMsg_t must stay <= 32 bytes (queue pass-by-value)");
@@ -91,14 +89,14 @@ void Display_RegisterRenderer(const DispRenderer_t *renderer);
  * self：调用方身份（编译期常量，如 DISP_CLIENT_CALIB），服务层据此校验权限 */
 DispResult_t Display_Acquire(DispClient_t self, DispScreen_t screen, uint8_t param);
 DispResult_t Display_Release(DispClient_t self);
-DispResult_t Display_DrawCross(DispClient_t self, uint16_t x, uint16_t y, uint16_t color);
+DispResult_t Display_Draw(DispClient_t self, uint16_t x, uint16_t y, uint16_t color);
 
 /* ==================== 客户端 API（异步 fire-and-forget）====================
  * 投递请求后立即返回，不等待应答。适用于高频更新、不关心结果的场景。
  * 注意：无法获知执行结果，仅保证请求已入队。 */
 void Display_PostAcquire(DispClient_t self, DispScreen_t screen, uint8_t param);
 void Display_PostRelease(DispClient_t self);
-void Display_PostDrawCross(DispClient_t self, uint16_t x, uint16_t y, uint16_t color);
+void Display_PostDraw(DispClient_t self, uint16_t x, uint16_t y, uint16_t color);
 
 /* ==================== 状态查询 API ====================
  * 获取当前服务层状态：持有者 + 当前界面。

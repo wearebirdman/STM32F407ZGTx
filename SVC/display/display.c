@@ -1,22 +1,4 @@
 /*
- * display.c —— 显示服务层实现（车轴：通信 + 属主状态机 + 渲染器派发）
- *
- * 本模块是显示服务的"车轴"，负责：
- *   - 消息路由：客户端请求经队列串行化，服务层统一处理；
- *   - 权限仲裁：s_owner 身份校验，冲突立即回码不阻塞；
- *   - 状态管理：s_screen + s_owner 双状态，支持查询；
- *   - 渲染派发：通过 DispRenderer_t 接口调用已注册的渲染后端。
- *
- * 渲染后端通过 Display_RegisterRenderer() 注册：
- *   - ui.c：简单 UI 渲染器（基于 lcd.c 驱动）；
- *   - lvgl_adapter.c（未来）：LVGL 渲染器。
- *
- * 修复的已知缺陷：
- *   1. ack 回包带 client 字段，Transact 按 client 过滤——消除多客户端并发时
- *      互相丢弃应答导致超时的问题；
- *   2. s_seq 改为 per-client 数组，各客户端独立递增，消除全局共享冲突；
- *   3. ServiceLoop 改 5ms 限时等待 + 调用 on_tick()，为 LVGL 心跳提供接入点；
- *   4. 新增 Display_GetStatus() 供客户端查询状态，消除影子状态漂移。
  */
 
 #include "display.h"
@@ -120,8 +102,7 @@ void Display_ServiceLoop(void)
                     /* 不渲染：最后一帧保留至下一任属主接管，避免闪屏 */
                 }
                 break;
-
-            case DISP_MSG_DRAW_CROSS:
+            case DISP_MSG_DRAW:
                 /* 作画仅限当前属主：空闲时 s_owner=NONE，client 已校验非
                  * NONE，故自然拒绝——"谁持有谁作画"一条规则覆盖所有场景 */
                 if (msg.client != s_owner)
@@ -206,12 +187,11 @@ DispResult_t Display_Release(DispClient_t self)
     m.client = self;
     return Display_Transact(&m, self);
 }
-
-DispResult_t Display_DrawCross(DispClient_t self, uint16_t x, uint16_t y, uint16_t color)
+DispResult_t Display_Draw(DispClient_t self, uint16_t x, uint16_t y, uint16_t color)
 {
     DispMsg_t m;
     memset(&m, 0, sizeof(m));
-    m.type   = DISP_MSG_DRAW_CROSS;
+    m.type   = DISP_MSG_DRAW;
     m.client = self;
     m.x      = x;
     m.y      = y;
@@ -243,11 +223,11 @@ void Display_PostRelease(DispClient_t self)
     (void)osMessageQueuePut(q_display_reqHandle, &m, 0, 0);
 }
 
-void Display_PostDrawCross(DispClient_t self, uint16_t x, uint16_t y, uint16_t color)
+void Display_PostDraw(DispClient_t self, uint16_t x, uint16_t y, uint16_t color)
 {
     DispMsg_t m;
     memset(&m, 0, sizeof(m));
-    m.type   = DISP_MSG_DRAW_CROSS;
+    m.type   = DISP_MSG_DRAW;
     m.client = self;
     m.x      = x;
     m.y      = y;
