@@ -15,8 +15,11 @@
  *
  * 当前提供的界面：
  *   - DISP_SCREEN_DEFAULT：开机占位屏（hello world）
- *   - DISP_SCREEN_HOME：主界面（3x4 网格 + 导航栏）
+ *   - DISP_SCREEN_HOME：主界面（3x4 网格）
  *   - DISP_SCREEN_CALIBRATE：校准界面（三态：底版/成功/失败）
+ *   - DISP_SCREEN_DRAW：画板（白底画布）
+ * 底部导航栏（HOME/< / >）由 Screen_Render 在所有界面绘制后统一追加，
+ * 常驻显示；子界面会话任务用 HOME_* 宏对触摸流做导航命中测试。
  *
  * 命中测试：HOME_* 宏导出供 home_task 做触摸命中测试，与渲染共用同一事实源。
  */

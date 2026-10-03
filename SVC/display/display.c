@@ -104,8 +104,11 @@ void Display_ServiceLoop(void)
                 break;
             case DISP_MSG_DRAW:
                 /* 作画仅限当前属主：空闲时 s_owner=NONE，client 已校验非
-                 * NONE，故自然拒绝——"谁持有谁作画"一条规则覆盖所有场景 */
-                if (msg.client != s_owner)
+                 * NONE，故自然拒绝——"谁持有谁作画"一条规则覆盖所有场景。
+                 * 具体图形由消息体 draw 字段决定，车轴只校验越界后转发。 */
+                if (msg.draw >= DISP_DRAW_COUNT)
+                    res = DISP_ERR;
+                else if (msg.client != s_owner)
                     res = DISP_FORBIDDEN;
                 else
                 {
@@ -187,12 +190,13 @@ DispResult_t Display_Release(DispClient_t self)
     m.client = self;
     return Display_Transact(&m, self);
 }
-DispResult_t Display_Draw(DispClient_t self, uint16_t x, uint16_t y, uint16_t color)
+DispResult_t Display_Draw(DispClient_t self, DispDraw_t kind, uint16_t x, uint16_t y, uint16_t color)
 {
     DispMsg_t m;
     memset(&m, 0, sizeof(m));
     m.type   = DISP_MSG_DRAW;
     m.client = self;
+    m.draw   = kind;
     m.x      = x;
     m.y      = y;
     m.color  = color;
@@ -223,14 +227,31 @@ void Display_PostRelease(DispClient_t self)
     (void)osMessageQueuePut(q_display_reqHandle, &m, 0, 0);
 }
 
-void Display_PostDraw(DispClient_t self, uint16_t x, uint16_t y, uint16_t color)
+void Display_PostDraw(DispClient_t self, DispDraw_t kind, uint16_t x, uint16_t y, uint16_t color)
 {
     DispMsg_t m;
     memset(&m, 0, sizeof(m));
     m.type   = DISP_MSG_DRAW;
     m.client = self;
+    m.draw   = kind;
     m.x      = x;
     m.y      = y;
+    m.color  = color;
+    (void)osMessageQueuePut(q_display_reqHandle, &m, 0, 0);
+}
+
+void Display_PostDrawLine(DispClient_t self, uint16_t x1, uint16_t y1,
+                          uint16_t x2, uint16_t y2, uint16_t color)
+{
+    DispMsg_t m;
+    memset(&m, 0, sizeof(m));
+    m.type   = DISP_MSG_DRAW;
+    m.client = self;
+    m.draw   = DISP_DRAW_LINE;
+    m.x      = x1;
+    m.y      = y1;
+    m.x2     = x2;
+    m.y2     = y2;
     m.color  = color;
     (void)osMessageQueuePut(q_display_reqHandle, &m, 0, 0);
 }

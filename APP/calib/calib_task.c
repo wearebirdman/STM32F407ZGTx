@@ -8,7 +8,7 @@
  * 流程（与协议一一对应）：
  *   1. 阻塞等 sem_calib（唯一 release 方 = home_task，让屏后触发）；
  *   2. Display_Acquire 接管校准界面（失败=界面被占，回报 CALIB_DONE 回 1）；
- *   3. 逐点：Calib_GetPoint = Display_DrawCross 画十字并同步等应答
+ *   3. 逐点：Calib_GetPoint = Display_Draw(CROSS) 画十字并同步等应答
  *      -> 应答 OK 后从 q_touch_evt 阻塞取一次按下（10s 超时）；共 4 点；
  *   4. Display_Acquire(param 1/2) 同持有者重渲染：清屏显示成功/失败；
  *   5. 再等一次按下（5s 兜底）-> Display_Release 退出
@@ -23,6 +23,7 @@
 #include "home_task.h"       /* UiEvt_t / q_ui_evtHandle（CALIB_DONE 回报） */
 #include "touch.h"           /* Touch_Adjust / Touch_SaveCalibration */
 #include "display.h"
+#include "ui.h"              /* HOME_NAV_Y/HOME_NAV_W（导航栏命中测试） */
 
 /* 排空消息队列中的残留事件（非阻塞读到空为止） */
 static void Queue_Flush(osMessageQueueId_t q)
@@ -31,10 +32,14 @@ static void Queue_Flush(osMessageQueueId_t q)
     while (osMessageQueueGet(q, &e, 0, 0) == osOK) { }
 }
 
+/* 用户在导航栏按 HOME 主动中止校准（与"取点失败"区分：不显示失败态） */
+static uint8_t s_abort;
+
 /**
  * @brief  校准取点回调（供 Touch_Adjust 调用）：
- *         请求 LCD 画十字 -> 同步等应答 -> 从事件队列等一次按下
- * @retval 1 = 取点成功, 0 = 失败/超时（Touch_Adjust 将中止）
+ *         请求 LCD 画十字 -> 同步等应答 -> flush 残留 -> 等一次按下。
+ *         导航栏区域（y >= HOME_NAV_Y）的按下 = HOME 键中止校准。
+ * @retval 1 = 取点成功, 0 = 失败/超时/中止（Touch_Adjust 将中止）
  */
 static uint8_t Calib_GetPoint(uint16_t x, uint16_t y,
                               uint16_t *raw_x, uint16_t *raw_y)
@@ -42,16 +47,34 @@ static uint8_t Calib_GetPoint(uint16_t x, uint16_t y,
     TouchEvt_t e;
 
     /* 画十字：同步等待服务层应答（非持有者/未就绪会立即回 FORBIDDEN） */
-    if (Display_DrawCross(DISP_CLIENT_CALIB, x, y, RED) != DISP_OK)
+    if (Display_Draw(DISP_CLIENT_CALIB, DISP_DRAW_CROSS, x, y, RED) != DISP_OK)
         return 0;
 
-    /* 等用户按下：从队列阻塞取（10s 超时），坐标为按下瞬间的原始 AD 值 */
-    if (osMessageQueueGet(q_touch_evtHandle, &e, 0, 10000) != osOK)
-        return 0;
+    /* 丢弃上一次按压残留的 HOLD/UP 流，保证"每个新按下恰好一次取点" */
+    Queue_Flush(q_touch_evtHandle);
 
-    *raw_x = e.raw_x;
-    *raw_y = e.raw_y;
-    return 1;
+    /* 等用户按下：DOWN 或 HOLD 都算（10s 超时） */
+    for (;;)
+    {
+        if (osMessageQueueGet(q_touch_evtHandle, &e, 0, 10000) != osOK)
+            return 0;
+        if (e.event == TOUCH_EVENT_PRESS_UP)
+            continue;                       /* 残留抬起：忽略继续等 */
+
+        if (e.y >= HOME_NAV_Y)              /* 导航栏按下：HOME 键 = 中止 */
+        {
+            if (e.x < HOME_NAV_W)
+            {
+                s_abort = 1;
+                return 0;
+            }
+            continue;                       /* < / > 键：校准中无意义，忽略 */
+        }
+
+        *raw_x = e.raw_x;
+        *raw_y = e.raw_y;
+        return 1;
+    }
 }
 
 /**
@@ -76,10 +99,19 @@ void calib_proc(void *argument)
             continue;
         }
 
-        /* 3. 排空会话前残留按下，逐点采集 */
+        /* 3. 排空会话前残留按下，逐点采集（限内容区，避开常驻导航栏） */
         Queue_Flush(q_touch_evtHandle);
+        s_abort = 0;
 
-        uint8_t ok = (Touch_Adjust(LCD_WIDTH, LCD_HEIGHT, 20, Calib_GetPoint) == TOUCH_OK);
+        uint8_t ok = (Touch_Adjust(LCD_WIDTH, HOME_NAV_Y, 20, Calib_GetPoint) == TOUCH_OK);
+
+        if (s_abort)
+        {
+            /* 用户按导航栏 HOME 主动中止：不显示结果态，直接归还 */
+            Display_Release(DISP_CLIENT_CALIB);
+            (void)osMessageQueuePut(q_ui_evtHandle, &done, 0, 0);
+            continue;
+        }
 
         if (ok)
         {

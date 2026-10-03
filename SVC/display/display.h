@@ -19,6 +19,7 @@ typedef enum {
     DISP_SCREEN_DEFAULT = 0,    /* 开机占位屏（服务层启动时渲染，home 接管后覆盖） */
     DISP_SCREEN_HOME,           /* 主界面：3x4 网格 + 底部导航栏（home_task 常驻属主） */
     DISP_SCREEN_CALIBRATE,      /* 触摸校准界面（calib_task 会话），param: 0=底版 1=成功 2=失败 */
+    DISP_SCREEN_DRAW,           /* 画板界面（draw_task 会话），param: 0=空白画布 1=重放历史 */
     DISP_SCREEN_COUNT,
 } DispScreen_t;
 
@@ -27,6 +28,7 @@ typedef enum {
     DISP_CLIENT_NONE = 0,       /* 非法/未填身份 */
     DISP_CLIENT_HOME,           /* home_task（主界面属主） */
     DISP_CLIENT_CALIB,          /* calib_task（校准会话属主） */
+    DISP_CLIENT_DRAW,           /* draw_task（画板会话属主） */
     DISP_CLIENT_COUNT,
 } DispClient_t;
 
@@ -34,9 +36,21 @@ typedef enum {
 typedef enum {
     DISP_MSG_ACQUIRE = 0,   /* 接管/换屏（空闲=授予；持有者=会话内切换，均按 param 渲染） */
     DISP_MSG_RELEASE,       /* 归还界面（仅持有者，最后一帧保留） */
-    DISP_MSG_DRAW,          /* 动态图元：画点（仅持有者） */
+    DISP_MSG_DRAW,          /* 动态图元：图形种类见消息体 draw 字段（仅持有者） */
     DISP_MSG_ACK,           /* 应答（仅服务层发送） */
 } DispMsgType_t;
+
+/* ==================== 绘图类型（DISP_MSG_DRAW 的二级标签）====================
+ * type 只区分消息大类，图形种类放消息体 draw 字段——车轴不感知具体图形，
+ * 新增图元 = 本枚举加值 + ui.c 的 UI_OnDraw 加 case，display.c 零改动。
+ * 注：载荷用公共字段（点/十字用 x/y，线段另用 x2/y2）；当字段浪费面
+ * 扩大（3 种以上异构图元）时，演进为带 tag 的联合体（见工程约定）。 */
+typedef enum {
+    DISP_DRAW_POINT = 0,    /* 大点（单像素不可见，用大点） */
+    DISP_DRAW_CROSS,        /* 十字：臂长 8 + 中心点（校准取点标记） */
+    DISP_DRAW_LINE,         /* 线段：(x,y)-(x2,y2)，画板笔画连点成线 */
+    DISP_DRAW_COUNT,
+} DispDraw_t;
 
 /* ==================== 结果码 ==================== */
 typedef enum {
@@ -54,10 +68,13 @@ typedef struct {
     uint8_t screen;     /* ACQUIRE: 目标界面 DispScreen_t */
     uint8_t client;     /* 请求方身份 DispClient_t（服务层权限校验依据） */
     uint8_t seq;        /* 请求序号：ACK 配对，用于丢弃过期应答 */
-    uint8_t param;      /* ACQUIRE: 界面状态参数 */ 
-    uint16_t x;         /* DRAW: 点坐标 */
+    uint8_t param;      /* ACQUIRE: 界面状态参数 */
+    uint8_t draw;       /* DRAW: 绘图类型 DispDraw_t */
+    uint16_t x;         /* DRAW: 起点/点坐标 */
     uint16_t y;
     uint16_t color;     /* DRAW: 颜色 */
+    uint16_t x2;        /* DRAW_LINE: 终点坐标（其余图元忽略） */
+    uint16_t y2;
 } DispMsg_t;
 
 _Static_assert(sizeof(DispMsg_t) <= 32, "DispMsg_t must stay <= 32 bytes (queue pass-by-value)");
@@ -89,14 +106,16 @@ void Display_RegisterRenderer(const DispRenderer_t *renderer);
  * self：调用方身份（编译期常量，如 DISP_CLIENT_CALIB），服务层据此校验权限 */
 DispResult_t Display_Acquire(DispClient_t self, DispScreen_t screen, uint8_t param);
 DispResult_t Display_Release(DispClient_t self);
-DispResult_t Display_Draw(DispClient_t self, uint16_t x, uint16_t y, uint16_t color);
+DispResult_t Display_Draw(DispClient_t self, DispDraw_t kind, uint16_t x, uint16_t y, uint16_t color);
 
 /* ==================== 客户端 API（异步 fire-and-forget）====================
  * 投递请求后立即返回，不等待应答。适用于高频更新、不关心结果的场景。
  * 注意：无法获知执行结果，仅保证请求已入队。 */
 void Display_PostAcquire(DispClient_t self, DispScreen_t screen, uint8_t param);
 void Display_PostRelease(DispClient_t self);
-void Display_PostDraw(DispClient_t self, uint16_t x, uint16_t y, uint16_t color);
+void Display_PostDraw(DispClient_t self, DispDraw_t kind, uint16_t x, uint16_t y, uint16_t color);
+void Display_PostDrawLine(DispClient_t self, uint16_t x1, uint16_t y1,
+                          uint16_t x2, uint16_t y2, uint16_t color);
 
 /* ==================== 状态查询 API ====================
  * 获取当前服务层状态：持有者 + 当前界面。

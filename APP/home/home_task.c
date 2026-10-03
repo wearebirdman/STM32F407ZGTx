@@ -13,6 +13,7 @@
 
 #include "home_task.h"
 #include "calib_task.h"    /* sem_calibHandle */
+#include "draw_task.h"     /* sem_drawHandle */
 #include "display.h"       /* Display_* 客户端 API */
 #include "ui.h"            /* HOME_* 几何宏（命中测试） */
 
@@ -21,6 +22,7 @@
 typedef enum {
     HOME_UI = 0,      /* 正常主界面：消费触摸做命中测试 */
     HOME_IN_CALIB,    /* 校准进行中：已让屏，等 CALIB_DONE */
+    HOME_IN_DRAW,     /* 画板进行中：已让屏，等 DRAW_DONE */
 } HomeState_t;
 
 static HomeState_t s_state = HOME_UI;
@@ -42,6 +44,16 @@ static void Home_StartCalibration(void)
 
     s_state = HOME_IN_CALIB;
     osSemaphoreRelease(sem_calibHandle);
+}
+
+/* 让出主界面并触发画板：与会准同一握手模式（会话 app 模板复用） */
+static void Home_StartDraw(void)
+{
+    if (Display_Release(DISP_CLIENT_HOME) != DISP_OK)
+        printf("home: release failed, draw will bounce back\r\n");
+
+    s_state = HOME_IN_DRAW;
+    osSemaphoreRelease(sem_drawHandle);
 }
 
 /* 触摸命中测试（仅 HOME_UI 态调用）：导航栏 -> 网格 */
@@ -66,7 +78,9 @@ static void Home_HandleTouch(UiEvt_t *e)
     uint8_t idx = row * HOME_COLS + col;    /* 0..11，格 1 即 idx 0 */
 
     if (idx == 0)
-        Home_StartCalibration();            /* 触摸校准按钮 */
+        Home_StartCalibration();            /* 格 1：触摸校准 */
+    else if (idx == 1)
+        Home_StartDraw();                   /* 格 2：画板 */
     else
         printf("home: cell %u not implemented\r\n", idx + 1);
 }
@@ -93,11 +107,14 @@ void home_proc(void *argument)
                 default: break;          /* 游离 CALIB_DONE：忽略 */
             }
         }
-        else /* HOME_IN_CALIB：只等校准结束，触摸丢弃 */
+        else /* 会话进行中（CALIB/DRAW）：触摸丢弃，只等对应 DONE */
         {
-            if (e.type == UIEVT_CALIB_DONE)
+            uint8_t done_now = (s_state == HOME_IN_CALIB)
+                                 ? (e.type == UIEVT_CALIB_DONE)
+                                 : (e.type == UIEVT_DRAW_DONE);
+            if (done_now)
             {
-                Home_FlushQueue();        /* 丢弃校准期间积压的触摸/事件 */
+                Home_FlushQueue();        /* 丢弃会话期间积压的触摸/事件 */
                 Display_Acquire(DISP_CLIENT_HOME, DISP_SCREEN_HOME, 0);
                 s_state = HOME_UI;
             }

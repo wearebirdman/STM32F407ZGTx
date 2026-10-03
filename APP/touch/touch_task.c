@@ -39,13 +39,8 @@ void touch_proc(void *argument)
                 printf("Touch DOWN: x=%u y=%u (raw %u,%u)\r\n",
                        touch_data.x, touch_data.y,
                        touch_data.raw_x, touch_data.raw_y);
+                /* 落点也进 UI 枢纽：home 的命中测试只需要按下边沿 */
                 {
-                    TouchEvt_t evt;
-                    evt.raw_x = touch_data.raw_x;
-                    evt.raw_y = touch_data.raw_y;
-                    (void)osMessageQueuePut(q_touch_evtHandle, &evt, 0, 0);
-
-                    /* 广播进 UI 事件枢纽（home 命中测试用屏幕坐标） */
                     UiEvt_t ue;
                     ue.type  = UIEVT_TOUCH;
                     ue.x     = touch_data.x;
@@ -53,12 +48,23 @@ void touch_proc(void *argument)
                     ue.raw_x = touch_data.raw_x;
                     ue.raw_y = touch_data.raw_y;
                     (void)osMessageQueuePut(q_ui_evtHandle, &ue, 0, 0);
-                    }
-                    break;
-            case TOUCH_EVENT_PRESS_UP:
-                break;
+                }
+                /* fall through */
             case TOUCH_EVENT_PRESS_HOLD:
-                break;   // 拖拽需求时再启用，避免高频刷屏
+            case TOUCH_EVENT_PRESS_UP:
+                /* 会话触摸流：DOWN/HOLD/UP 全量入队（笔画流），满则丢。
+                 * HOLD 每 15ms 一条——home 会话期间无人消费 q_touch_evt，
+                 * 自动丢弃；画板会话实时消费，无积压。 */
+                {
+                    TouchEvt_t evt;
+                    evt.event = touch_data.event;
+                    evt.x     = touch_data.x;
+                    evt.y     = touch_data.y;
+                    evt.raw_x = touch_data.raw_x;
+                    evt.raw_y = touch_data.raw_y;
+                    (void)osMessageQueuePut(q_touch_evtHandle, &evt, 0, 0);
+                }
+                break;
             default:
                 break;
         }

@@ -24,12 +24,27 @@ static void Screen_ShowDefault(uint8_t param)
     LCD_ShowString(20, 20, 100, 20, 16, "hello world", RED, BLACK);
 }
 
-/* 主界面：上方 3x4 网格 + 底部 3 键导航栏（几何宏见 ui.h，
- * home_task 用同一组宏做命中测试，此处只管画） */
+/* 底部导航栏（所有界面常驻，由 Screen_Render 统一追加绘制）：
+ * 填充 + 分隔线 + 三键标签。子界面消费者用 HOME_* 宏做导航命中测试 */
+static void Screen_DrawNav(void)
+{
+    LCD_Fill(0, HOME_NAV_Y, LCD_WIDTH - 1, LCD_HEIGHT - 1, DARKBLUE);
+    LCD_DrawLine(HOME_NAV_W, HOME_NAV_Y, HOME_NAV_W, LCD_HEIGHT - 1, WHITE);
+    LCD_DrawLine(2 * HOME_NAV_W, HOME_NAV_Y, 2 * HOME_NAV_W, LCD_HEIGHT - 1, WHITE);
+    LCD_ShowString(0 * HOME_NAV_W + (HOME_NAV_W - 4 * 8) / 2, HOME_NAV_Y + (HOME_NAV_H - 16) / 2,
+                   HOME_NAV_W, HOME_NAV_H, 16, "HOME", WHITE, DARKBLUE);
+    LCD_ShowString(1 * HOME_NAV_W + (HOME_NAV_W - 8) / 2, HOME_NAV_Y + (HOME_NAV_H - 16) / 2,
+                   HOME_NAV_W, HOME_NAV_H, 16, "<", WHITE, DARKBLUE);
+    LCD_ShowString(2 * HOME_NAV_W + (HOME_NAV_W - 8) / 2, HOME_NAV_Y + (HOME_NAV_H - 16) / 2,
+                   HOME_NAV_W, HOME_NAV_H, 16, ">", WHITE, DARKBLUE);
+}
+
+/* 主界面内容区：3x4 网格（几何宏见 ui.h，home_task 用同一组宏做命中测试。
+ * 导航栏不在此处绘制——Screen_Render 统一追加，所有界面常驻） */
 static void Screen_ShowHome(uint8_t param)
 {
     static const char *cell_label[HOME_COLS * HOME_ROWS] = {
-        "CAL", "2", "3", "4", "5", "6",
+        "CAL", "DRAW", "3", "4", "5", "6",
         "7", "8", "9", "10", "11", "12",
     };
     (void)param;
@@ -43,7 +58,7 @@ static void Screen_ShowHome(uint8_t param)
     for (uint8_t r = 1; r < HOME_ROWS; r++)
         LCD_DrawLine(1, r * HOME_CELL_H, LCD_WIDTH - 2, r * HOME_CELL_H, WHITE);
 
-    /* 格标签（16 号字：字符宽 8 高 16，居中放置） */
+    /* 格标签（16 号字：字符宽 8 高 16，居中放置；已实现功能绿色） */
     for (uint8_t i = 0; i < HOME_COLS * HOME_ROWS; i++)
     {
         uint8_t col = i % HOME_COLS;
@@ -52,19 +67,8 @@ static void Screen_ShowHome(uint8_t param)
         LCD_ShowString(col * HOME_CELL_W + (HOME_CELL_W - len * 8) / 2,
                        row * HOME_CELL_H + (HOME_CELL_H - 16) / 2,
                        HOME_CELL_W, HOME_CELL_H, 16,
-                       cell_label[i], (i == 0) ? GREEN : GRAY, BLACK);
+                       cell_label[i], (i <= 1) ? GREEN : GRAY, BLACK);
     }
-
-    /* 底部导航栏：填充 + 分隔线 + 三键标签 */
-    LCD_Fill(0, HOME_NAV_Y, LCD_WIDTH - 1, LCD_HEIGHT - 1, DARKBLUE);
-    LCD_DrawLine(HOME_NAV_W, HOME_NAV_Y, HOME_NAV_W, LCD_HEIGHT - 1, WHITE);
-    LCD_DrawLine(2 * HOME_NAV_W, HOME_NAV_Y, 2 * HOME_NAV_W, LCD_HEIGHT - 1, WHITE);
-    LCD_ShowString(0 * HOME_NAV_W + (HOME_NAV_W - 4 * 8) / 2, HOME_NAV_Y + (HOME_NAV_H - 16) / 2,
-                   HOME_NAV_W, HOME_NAV_H, 16, "HOME", WHITE, DARKBLUE);
-    LCD_ShowString(1 * HOME_NAV_W + (HOME_NAV_W - 8) / 2, HOME_NAV_Y + (HOME_NAV_H - 16) / 2,
-                   HOME_NAV_W, HOME_NAV_H, 16, "<", WHITE, DARKBLUE);
-    LCD_ShowString(2 * HOME_NAV_W + (HOME_NAV_W - 8) / 2, HOME_NAV_Y + (HOME_NAV_H - 16) / 2,
-                   HOME_NAV_W, HOME_NAV_H, 16, ">", WHITE, DARKBLUE);
 }
 
 /* 触摸校准界面（三态）。param: 0=底版（十字由持有者经 DRAW
@@ -87,7 +91,17 @@ static void Screen_ShowCalibrate(uint8_t param)
     }
 }
 
-/* 界面分发：根据 screen 调用对应的排版函数 */
+/* 画板内容区：白底画布 + 边框（历史重放由 draw_task 逐条发 DRAW_LINE
+ * 完成，渲染层只管空白底版；导航栏由 Screen_Render 统一追加） */
+static void Screen_ShowDraw(uint8_t param)
+{
+    (void)param;
+    LCD_Clear(WHITE);
+    LCD_DrawRectangle(0, 0, LCD_WIDTH - 1, HOME_NAV_Y - 1, BLACK);
+}
+
+/* 界面分发：先画内容区，再统一追加常驻导航栏。
+ * 注意各排版函数的 LCD_Clear 会连导航区一起清掉，故导航必须在后画 */
 static void Screen_Render(DispScreen_t screen, uint8_t param)
 {
     switch (screen)
@@ -95,12 +109,20 @@ static void Screen_Render(DispScreen_t screen, uint8_t param)
         case DISP_SCREEN_DEFAULT:      Screen_ShowDefault(param);   break;
         case DISP_SCREEN_HOME:         Screen_ShowHome(param);      break;
         case DISP_SCREEN_CALIBRATE:    Screen_ShowCalibrate(param); break;
-        default: break;                /* 调用方已校验越界，双保险 */
+        case DISP_SCREEN_DRAW:         Screen_ShowDraw(param);      break;
+        default: return;               /* 调用方已校验越界，双保险 */
     }
+    Screen_DrawNav();
 }
 
-/* 绘制十字：臂长 8 像素 + 中心大点（调用点保证 x,y >= 8，校准 margin=20 满足） */
-static void Screen_Draw(uint16_t x, uint16_t y, uint16_t color)
+/* 图元：大点（2x2，单像素在小屏上几乎不可见） */
+static void Screen_DrawPoint(uint16_t x, uint16_t y, uint16_t color)
+{
+    LCD_DrawBigPoint(x, y, color);
+}
+
+/* 图元：十字，臂长 8 像素 + 中心点（调用点保证 x,y >= 8，校准 margin=20 满足） */
+static void Screen_DrawCross(uint16_t x, uint16_t y, uint16_t color)
 {
     LCD_DrawLine(x - 8, y, x + 8, y, color);
     LCD_DrawLine(x, y - 8, x, y + 8, color);
@@ -123,14 +145,23 @@ void UI_OnRelease(void)
     /* 无帧缓冲场景下，释放时不渲染，保留最后一帧至下一任属主接管 */
 }
 
-/* on_draw：处理动态绘图消息（如 DRAW） */
+/* on_draw：按消息体 draw 字段分发图元（type/draw 越界已由车轴校验） */
 void UI_OnDraw(const DispMsg_t *msg)
 {
-    if (msg->type == DISP_MSG_DRAW)
+    switch (msg->draw)
     {
-        Screen_Draw(msg->x, msg->y, msg->color);
+        case DISP_DRAW_POINT:
+            Screen_DrawPoint(msg->x, msg->y, msg->color);
+            break;
+        case DISP_DRAW_CROSS:
+            Screen_DrawCross(msg->x, msg->y, msg->color);
+            break;
+        case DISP_DRAW_LINE:
+            LCD_DrawLine(msg->x, msg->y, msg->x2, msg->y2, msg->color);
+            break;
+        default:
+            break;      /* 新增图元 = DispDraw_t 加值 + 此处加 case */
     }
-    /* 未来扩展其他绘图消息类型 */
 }
 
 /* on_tick：周期性回调（LVGL 场景下调用 lv_timer_handler） */
