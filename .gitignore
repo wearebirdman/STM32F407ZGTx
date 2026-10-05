@@ -1,6 +1,6 @@
 # ==================== 白名单模式 ====================
-# 默认忽略仓库根下的一切，再显式放行 APP、BSP、SVC 三个目录。
-# 新增的其他文件/目录（Core、Drivers、Middlewares、build、IDE 配置等）
+# 默认忽略仓库根下的一切，再显式放行构建所需源码与工程配置。
+# 新增其他文件/目录（build、temp、.pack、IDE 个人状态等）
 # 无需逐个列举，自动被忽略。
 
 # 1. 忽略根目录下所有内容
@@ -9,7 +9,30 @@
 # 2. 放行本文件（否则规则自身不被跟踪）
 !/.gitignore
 
-# 3. 放行三个源码目录
+# 3. 放行应用、驱动、服务源码目录
 !/APP/
 !/BSP/
 !/SVC/
+
+# 4. 放行构建输入（含手改的生成物与打过补丁的第三方库）
+#    Core：fsmc 时序、freertos 队列、FreeRTOSConfig 堆、串口重定向等手改
+#    Middlewares：LVGL 经过裁剪与源码补丁，FreeRTOS 内核
+#    Drivers：HAL/CMSIS 厂商代码，保证 fresh clone 直接可编译
+#    FATFS：手写 diskio 胶水层
+!/Core/
+!/Drivers/
+!/FATFS/
+!/Middlewares/
+
+# 5. 放行根目录工程配置与构建脚本
+!/lv_conf.h
+!/F407ZGTx.ioc
+!/.mxproject
+!/startup_stm32f407xx.s
+!/STM32F407xx_FLASH.ld
+!/Makefile
+!/RTE_Components.h
+!/README.md
+
+# 6. 放行 EIDE 工程配置（include 路径、LV_CONF_INCLUDE_SIMPLE 宏定义所在）
+!/.eide/

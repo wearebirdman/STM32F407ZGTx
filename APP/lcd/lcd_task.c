@@ -1,16 +1,32 @@
 #include "lcd_task.h"
 #include "lcd.h"
+#include "ui.h"
+#include "ui_msg.h"
+#include "ui_port.h"
+#include "lvgl.h"
 
 #include <stdio.h>
 
 void lcd_disp(void *argument)
 {
-    LCD_Init();   // LCD 硬件初始化
-    printf("LCD Init Done!\r\n");
-    LCD_ShowString(50, 50, 100, 20, 16, "Hello LCD!", WHITE, BLACK);
+    UiMsg_t msg;
+    uint32_t wait;
 
-    for(;;)
+    LCD_Init();      // LCD 硬件初始化
+    Ui_PortInit();   // LVGL 显示/输入适配 + 建界面
+    printf("LCD + LVGL Init Done!\r\n");
+
+    for (;;)
     {
-        osDelay(100);
+        /* 先处理跨任务界面请求，再跑 LVGL 心跳 */
+        while (osMessageQueueGet(q_UiMsgHandle, &msg, NULL, 0) == osOK)
+            Ui_ApplyMsg(&msg);
+
+        wait = lv_timer_handler(); // 返回距下次处理还需多少 ms
+        if (wait < 5)
+            wait = 5;   // 下限：避免空转忙等
+        if (wait > 33)
+            wait = 33;  // 上限 = LV_DEF_REFR_PERIOD，保证动画不掉帧
+        osDelay(wait);
     }
 }
