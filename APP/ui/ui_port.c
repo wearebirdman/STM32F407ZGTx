@@ -1,5 +1,6 @@
 #include "ui_port.h"
 #include "ui.h"
+#include "ui_chrome.h"
 #include "lcd.h"
 #include "touch.h"
 #include "lvgl.h"
@@ -66,5 +67,5 @@ void Ui_PortInit(void)
     lv_indev_set_read_cb(indev, Ui_TouchReadCb);
     lv_indev_set_display(indev, disp);
 
-    Ui_CreateHome();
+    Ui_Home(); // 建主菜单并加载
 }

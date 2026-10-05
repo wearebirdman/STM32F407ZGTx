@@ -1,59 +1,101 @@
 #include "ui.h"
+#include "ui_chrome.h"
 #include "lvgl.h"
 
-#include <stdio.h>
+/* 图块描述：标签 + 目标页 + 主题色 */
+typedef struct {
+    const char *name;  // 图块文字
+    uint8_t     page;  // 目标页（UiPageId_t）
+    uint32_t    color; // 图块底色（RGB888）
+} HomeTile_t;
 
-static lv_obj_t *s_home_label; // 主屏演示标签，接收跨任务文本消息
+#define HOME_TILE_NUM   6 // 2 列 × 3 行
+#define HOME_MENU_PAGES 1 // 菜单页数；加页时扩展 s_tile_list 并改此值
 
-/* 校准按钮点击回调：投递消息，演示单向数据流 */
-static void Ui_OnCalibClicked(lv_event_t *e)
+static const HomeTile_t s_tile_list[HOME_TILE_NUM] = {
+    { "Calib", UI_PAGE_CALIB, 0xE53935 }, // 触摸校准
+    { "Draw",  UI_PAGE_DRAW,  0x1E88E5 }, // 画板
+    { "LED",   UI_PAGE_LED,   0x43A047 }, // LED 演示
+    { "Key",   UI_PAGE_KEY,   0xFB8C00 }, // 按键演示
+    { "Set",   UI_PAGE_SET,   0x8E24AA }, // 系统设置
+    { "About", UI_PAGE_ABOUT, 0x757575 }, // 关于
+};
+
+static uint8_t s_menu_page; // 当前菜单页（0 起）
+
+/* 图块点击：跳转到对应 App 页 */
+static void Home_OnTileClicked(lv_event_t *e)
 {
-    UiMsg_t msg = { .type = UI_MSG_REQ_CALIB };
+    const HomeTile_t *tile = lv_event_get_user_data(e);
 
-    (void)e;
-    Ui_PostMsg(&msg);
+    Ui_Push((UiPageId_t)tile->page);
 }
 
-/* 创建主屏：标题标签 + 校准按钮，并加载为当前屏 */
-void Ui_CreateHome(void)
+/* 重建主菜单并按方向滑入（菜单翻页用） */
+static void Home_SwitchAnim(lv_scr_load_anim_t dir)
 {
-    lv_obj_t *scr = lv_obj_create(NULL);
-    lv_obj_remove_style_all(scr);
+    lv_obj_t *scr = Ui_CreateHome(UI_PAGE_HOME);
 
-    s_home_label = lv_label_create(scr);
-    lv_label_set_text(s_home_label, "STM32F407 + LVGL 9.6");
-    lv_obj_set_style_text_font(s_home_label, &lv_font_montserrat_16, 0);
-    lv_obj_align(s_home_label, LV_ALIGN_TOP_MID, 0, 12);
-
-    lv_obj_t *btn = lv_button_create(scr);
-    lv_obj_set_size(btn, 140, 50);
-    lv_obj_align(btn, LV_ALIGN_CENTER, 0, 0);
-    lv_obj_add_event_cb(btn, Ui_OnCalibClicked, LV_EVENT_CLICKED, NULL);
-
-    lv_obj_t *btn_label = lv_label_create(btn);
-    lv_label_set_text(btn_label, "Touch Calib");
-    lv_obj_center(btn_label);
-
-    lv_screen_load(scr);
+    lv_screen_load_anim(scr, dir, 250, 0, true);
 }
 
-/* 应用 UI 消息：只允许在 lcd_task 上下文调用（LVGL 非线程安全） */
-void Ui_ApplyMsg(const UiMsg_t *msg)
+/* 主菜单 BACK：翻到上一页菜单 */
+void Ui_HomeBack(void)
 {
-    if (msg->type >= UI_MSG_COUNT)
+    if (s_menu_page == 0)
         return;
+    s_menu_page--;
+    Home_SwitchAnim(LV_SCR_LOAD_ANIM_MOVE_RIGHT);
+}
 
-    switch (msg->type)
+/* 主菜单 NEXT：翻到下一页菜单 */
+void Ui_HomeNext(void)
+{
+    if (s_menu_page + 1 >= HOME_MENU_PAGES)
+        return;
+    s_menu_page++;
+    Home_SwitchAnim(LV_SCR_LOAD_ANIM_MOVE_LEFT);
+}
+
+/* 主菜单页工厂：2×3 彩色图块网格 */
+lv_obj_t *Ui_CreateHome(UiPageId_t id)
+{
+    static lv_coord_t col_dsc[] = { LV_GRID_FR(1), LV_GRID_FR(1), LV_GRID_TEMPLATE_LAST };
+    static lv_coord_t row_dsc[] = { LV_GRID_FR(1), LV_GRID_FR(1), LV_GRID_FR(1), LV_GRID_TEMPLATE_LAST };
+    lv_obj_t *scr = lv_obj_create(NULL);
+    lv_obj_t *content;
+    lv_obj_t *tile;
+    lv_obj_t *lab;
+    uint32_t i;
+    uint32_t col = 0;
+    uint32_t row = 0;
+
+    (void)id;
+    Ui_ChromeBuild(scr, &content);
+    lv_obj_set_grid_dsc_array(content, col_dsc, row_dsc);
+    lv_obj_set_style_pad_column(content, 6, 0); // 图块横向间隙
+    lv_obj_set_style_pad_row(content, 6, 0); // 图块纵向间隙
+
+    for (i = 0; i < HOME_TILE_NUM; i++)
     {
-        case UI_MSG_SET_TEXT:
-            lv_label_set_text(s_home_label, msg->data.text);
-            break;
+        tile = lv_button_create(content);
+        lv_obj_set_grid_cell(tile, LV_GRID_ALIGN_STRETCH, col, 1, LV_GRID_ALIGN_STRETCH, row, 1);
+        lv_obj_set_style_bg_color(tile, lv_color_hex(s_tile_list[i].color), 0);
+        lv_obj_set_style_bg_opa(tile, LV_OPA_COVER, 0);
+        lv_obj_set_style_radius(tile, 8, 0);
+        lv_obj_add_event_cb(tile, Home_OnTileClicked, LV_EVENT_CLICKED, (void *)&s_tile_list[i]);
+        col++;
+        if (col >= 2)
+        {
+            col = 0;
+            row++;
+        }
 
-        case UI_MSG_REQ_CALIB:
-            printf("calib requested\r\n"); // TODO: 校准流程（建议留在 LVGL 外用 LCD 直绘）
-            break;
-
-        default:
-            break;
+        lab = lv_label_create(tile);
+        lv_label_set_text(lab, s_tile_list[i].name);
+        lv_obj_set_style_text_font(lab, &lv_font_montserrat_14, 0);
+        lv_obj_set_style_text_color(lab, lv_color_white(), 0);
+        lv_obj_center(lab);
     }
+    return scr;
 }

@@ -61,11 +61,8 @@ void MX_FSMC_Init(void)
   hsram4.Init.WriteBurst = FSMC_WRITE_BURST_DISABLE;
   hsram4.Init.PageSize = FSMC_PAGE_SIZE_NONE;
   /* Timing */
-  /* LVGL 提速：168MHz 下原默认值每像素写约 446ns（整屏 34ms），
-     收紧后约 137ns/像素，贴近 ILI9341 tWC(145ns) 下限；
-     若上板出现花点/条纹，将 DataSetupTime 每次 +2 回退 */
   Timing.AddressSetupTime = 3;
-  Timing.AddressHoldTime = 0;
+  Timing.AddressHoldTime = 15;
   Timing.DataSetupTime = 20;
   Timing.BusTurnAroundDuration = 0;
   Timing.CLKDivision = 16;
