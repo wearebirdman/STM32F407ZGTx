@@ -1,13 +1,15 @@
 #include "led_task.h"
 #include "led.h"
 
-void led_proc(void *argument)
+extern osMessageQueueId_t q_LedReqHandle;
+
+void led_disp(void *argument)
 {
-    for(;;)
+    LedReq_t led_req;
+
+    for (;;)
     {
-        //led_toggle(LED1);
-        //led_toggle(LED2);
-        //led_toggle(LED3);
-        osDelay(1000);
+        osMessageQueueGet(q_LedReqHandle, &led_req, NULL, osWaitForever); // 阻塞等待 LED 请求
+        Led_Refresh(led_req);
     }
 }

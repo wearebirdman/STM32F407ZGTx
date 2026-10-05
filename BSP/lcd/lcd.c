@@ -1,69 +1,51 @@
 #include "lcd.h"
 #include "lcd_font.h"
 
-/* ==================== 方向配置结构体 ==================== */
-typedef struct
-{
+/* 屏幕方向配置结构体 */
+typedef struct {
     uint8_t mv;  // 0=竖屏, 1=横屏 (行列交换)
     uint8_t mx;  // 0=从上到下, 1=从下到上 (行反转)
     uint8_t my;  // 0=从左到右, 1=从右到左 (列反转)
     uint8_t bgr; // 0=RGB, 1=BGR (颜色顺序)
-} lcd_dir_t;
+} LcdDir_t;
 
-/* ==================== LCD 重要参数集 ==================== */
-typedef struct
-{
-    uint16_t id;      // LCD ID
-    uint16_t wramcmd; // 开始写GRAM指令
-    uint16_t rdcmd;   // 开始读GRAM指令
-    lcd_dir_t dir;    // 屏幕方向配置
-    uint16_t width;   // LCD 宽度
-    uint16_t height;  // LCD 高度
-    uint16_t setxcmd; // 设置X坐标指令
-    uint16_t setycmd; // 设置Y坐标指令
-} lcd_dev_t;
+/* LCD 重要参数集结构体 */
+typedef struct {
+    uint16_t id;       // LCD ID
+    uint16_t wramcmd;  // 开始写GRAM指令
+    uint16_t rdcmd;    // 开始读GRAM指令
+    LcdDir_t dir;      // 屏幕方向配置
+    uint16_t width;    // LCD 宽度
+    uint16_t height;   // LCD 高度
+    uint16_t setxcmd;  // 设置X坐标指令
+    uint16_t setycmd;  // 设置Y坐标指令
+} LcdDev_t;
 
-/* ==================== LCD 重要参数（仅本文件使用） ==================== */
-static lcd_dev_t lcddev;
+/* 内部变量（仅本文件使用） */
+static LcdDev_t s_lcdDev;
 
-/**
- * @brief  写入 LCD 命令
- * @param  cmd: 要写入的命令（寄存器序号）
- */
-
+/* 底层寄存器操作 */
+/* 写入 LCD 命令（寄存器序号） */
 static void LCD_WR_CMD(uint16_t cmd)
 {
     /* cmd = cmd;    // 使用-O2优化时，必须插入的延时 */
     LCD->LCD_REG = cmd; // 写入要写的寄存器序号
 }
 
-/**
- * @brief  写入 LCD 数据
- * @param  data: 要写入的数据
- */
-
+/* 写入 LCD 数据 */
 static void LCD_WR_DATA(uint16_t data)
 {
     /* data = data;    // 使用-O2优化时，必须插入的延时 */
     LCD->LCD_RAM = data; // 写入数据
 }
 
-/**
- * @brief  读取 LCD 数据
- * @retval 读取到的数据
- */
-
+/* 读取 LCD 数据 */
 static uint16_t LCD_RD_DATA(void)
 {
     return LCD->LCD_RAM; // FSMC 直接读数据寄存器（原实现把值当地址解引用，是错误的）
 }
 
-/**
- * @brief  写入 LCD 寄存器
- * @param  LCD_Reg:      寄存器序号
- * @param  LCD_RegValue: 寄存器值
- */
-
+/* 写入 LCD 寄存器（寄存器序号 + 寄存器值） */
 static void LCD_WriteReg(uint16_t LCD_Reg, uint16_t LCD_RegValue)
 {
     LCD_WR_CMD(LCD_Reg);       // 写入要写的寄存器序号
@@ -71,10 +53,10 @@ static void LCD_WriteReg(uint16_t LCD_Reg, uint16_t LCD_RegValue)
 }
 
 /*
- * ==================== 宏定义：简化 LCD 命令 + 数据的连续写入 ====================
- * 写命令 + 1 个数据
+ * 宏定义：简化 LCD 命令 + 数据的连续写入
  */
 
+/* 写命令 + 1 个数据 */
 #define LCD_WR_CMD1(cmd, d1) \
     do                       \
     {                        \
@@ -146,14 +128,10 @@ static void LCD_WriteReg(uint16_t LCD_Reg, uint16_t LCD_RegValue)
         LCD_WR_DATA(d15);                                                                   \
     } while (0)
 
-/**
- * @brief  设置屏幕扫描方向
- * @param  cfg: 方向配置结构体指针
- */
-
-static void LCD_SetDirection(const lcd_dir_t *cfg)
+/* 设置屏幕扫描方向（同步更新宽高与 X/Y 设置命令） */
+static void LCD_SetDirection(const LcdDir_t *cfg)
 {
-    lcddev.dir = *cfg;
+    s_lcdDev.dir = *cfg;
 
     uint8_t reg36 = 0x00;
     reg36 |= (cfg->my << 7);
@@ -163,19 +141,16 @@ static void LCD_SetDirection(const lcd_dir_t *cfg)
 
     LCD_WriteReg(0x36, reg36);
 
-    lcddev.width = (cfg->mv ? LCD_HEIGHT : LCD_WIDTH);
-    lcddev.height = (cfg->mv ? LCD_WIDTH : LCD_HEIGHT);
+    s_lcdDev.width = (cfg->mv ? LCD_HEIGHT : LCD_WIDTH);
+    s_lcdDev.height = (cfg->mv ? LCD_WIDTH : LCD_HEIGHT);
 
     /* 横屏或双翻转时需要交换 X/Y 设置命令 */
     uint8_t need_swap = cfg->mv || (cfg->my && cfg->mx);
-    lcddev.setxcmd = (need_swap ? 0x2B : 0x2A);
-    lcddev.setycmd = (need_swap ? 0x2A : 0x2B);
+    s_lcdDev.setxcmd = (need_swap ? 0x2B : 0x2A);
+    s_lcdDev.setycmd = (need_swap ? 0x2A : 0x2B);
 }
 
-/**
- * @brief  ILI9341 初始化序列
- */
-
+/* ILI9341 初始化序列 */
 static void LCD_Init_ILI9341(void)
 {
     /* 1. 电源控制寄存器 */
@@ -214,10 +189,7 @@ static void LCD_Init_ILI9341(void)
     LCD_WR_CMD(0x29); // 点亮屏幕
 }
 
-/**
- * @brief  LCD 初始化
- */
-
+/* LCD 初始化 */
 void LCD_Init(void)
 {
     /* 1. 硬件复位 */
@@ -233,111 +205,79 @@ void LCD_Init(void)
     LCD_Init_ILI9341();
 
     /* 4. 设置默认参数 */
-    lcddev.id = 0x9341;
-    lcddev.wramcmd = 0x2C;
-    lcddev.rdcmd = 0x2E;
+    s_lcdDev.id = 0x9341;
+    s_lcdDev.wramcmd = 0x2C;
+    s_lcdDev.rdcmd = 0x2E;
 
     /*
      * 5. 设置默认扫描方向
      * 从左到右，从上到下，BGR=1
      * 竖屏
      */
-
-    lcd_dir_t lcddir;
-    lcddir.mv = 0; // 竖屏
-    lcddir.mx = 0; // 从左到右
-    lcddir.my = 0; // 从上到下
-    lcddir.bgr = 1;
-    LCD_SetDirection(&lcddir); // 使用预定义方向
+    LcdDir_t lcddir;
+    lcddir.mv = 0;  // 竖屏
+    lcddir.mx = 0;  // 从上到下
+    lcddir.my = 0;  // 从左到右
+    lcddir.bgr = 1; // BGR 色序
+    LCD_SetDirection(&lcddir);
 
     LCD_Clear(BLACK); // 清屏为黑色
 }
 
-/**
- * @brief  开启屏幕显示
- */
-
+/* 开启屏幕显示 */
 void LCD_DisplayOn(void)
 {
     LCD_WR_CMD(0x29); // 开启显示
 }
 
-/**
- * @brief  关闭屏幕显示
- */
-
+/* 关闭屏幕显示 */
 void LCD_DisplayOff(void)
 {
     LCD_WR_CMD(0x28); // 关闭显示
 }
 
-/**
- * @brief  设置显示窗口
- * @param  x:      起始X坐标
- * @param  y:      起始Y坐标
- * @param  width:  窗口宽度
- * @param  height: 窗口高度
- */
-
+/* 设置显示窗口（起始坐标 + 宽高） */
 static void LCD_SetWindow(uint16_t x, uint16_t y, uint16_t width, uint16_t height)
 {
     uint16_t twidth, theight;
     twidth = x + width - 1;
     theight = y + height - 1;
 
-    LCD_WR_CMD(lcddev.setxcmd);
+    LCD_WR_CMD(s_lcdDev.setxcmd);
     LCD_WR_DATA(x >> 8);
     LCD_WR_DATA(x & 0xFF);
     LCD_WR_DATA(twidth >> 8);
     LCD_WR_DATA(twidth & 0xFF);
-    LCD_WR_CMD(lcddev.setycmd);
+    LCD_WR_CMD(s_lcdDev.setycmd);
     LCD_WR_DATA(y >> 8);
     LCD_WR_DATA(y & 0xFF);
     LCD_WR_DATA(theight >> 8);
     LCD_WR_DATA(theight & 0xFF);
 }
 
-/**
- * @brief  坐标越界检查
- * @param  x: X坐标
- * @param  y: Y坐标
- * @retval 1 = 坐标越界, 0 = 坐标正常
- */
-
+/* 坐标越界检查，1 = 坐标越界, 0 = 坐标正常 */
 static uint8_t LCD_CoordError(uint16_t x, uint16_t y)
 {
     /* 坐标正确返回0，否则返回1 */
-    return (x >= lcddev.width || y >= lcddev.height);
+    return (x >= s_lcdDev.width || y >= s_lcdDev.height);
 }
 
-/**
- * @brief  清屏
- * @param  color: 填充颜色（RGB565）
- */
-
+/* 清屏（color: RGB565） */
 void LCD_Clear(uint16_t color)
 {
-    uint32_t total = (uint32_t)lcddev.width * lcddev.height;
+    uint32_t total = (uint32_t)s_lcdDev.width * s_lcdDev.height;
     __IO uint16_t *ram_addr = &LCD->LCD_RAM; // 缓存 LCD_RAM 地址，减少指针解引用开销
 
-    LCD_SetWindow(0, 0, lcddev.width, lcddev.height);
+    LCD_SetWindow(0, 0, s_lcdDev.width, s_lcdDev.height);
 
-    LCD->LCD_REG = lcddev.wramcmd;
+    LCD->LCD_REG = s_lcdDev.wramcmd;
     for (uint32_t index = 0; index < total; index++)
     {
         *ram_addr = color;
     }
 }
 
-/**
- * @brief  填充指定区域
- * @param  x:      起始X坐标
- * @param  y:      起始Y坐标
- * @param  width:  区域宽度
- * @param  height: 区域高度
- * @param  color:  填充颜色（RGB565）
- */
-
+/* 填充指定区域（起始坐标 + 宽高 + RGB565 颜色） */
 void LCD_Fill(uint16_t x, uint16_t y, uint16_t width, uint16_t height, uint16_t color)
 {
     if (LCD_CoordError(x, y))
@@ -351,23 +291,19 @@ void LCD_Fill(uint16_t x, uint16_t y, uint16_t width, uint16_t height, uint16_t 
 
     LCD_SetWindow(x, y, width, height);
 
-    LCD->LCD_REG = lcddev.wramcmd;
+    LCD->LCD_REG = s_lcdDev.wramcmd;
     for (uint32_t i = 0; i < total; i++)
     {
         *ram_addr = color;
     }
 }
 
-/**
- * @brief  读取指定点的颜色值
- * @param  x: X坐标
- * @param  y: Y坐标
- * @retval 该点颜色值（RGB565）；坐标越界返回 0
- * @note   ILI9341 16 位并口时序：设 1x1 窗口 -> 发读 GRAM 命令（0x2E）->
- *         每个颜色通道前需一次哑读丢弃无效数据，通道有效位位于 [15:10]。
- *         部分面板读出顺序为 B 先，若上板验证发现红蓝互换，对调 r/b 即可。
+/*
+ * 读取指定点的颜色值（RGB565），坐标越界返回 0
+ * ILI9341 16 位并口时序：设 1x1 窗口 -> 发读 GRAM 命令（0x2E）->
+ * 每个颜色通道前需一次哑读丢弃无效数据，通道有效位位于 [15:10]。
+ * 部分面板读出顺序为 B 先，若上板验证发现红蓝互换，对调 r/b 即可。
  */
-
 uint16_t LCD_ReadPoint(uint16_t x, uint16_t y)
 {
     uint16_t r, g, b;
@@ -376,7 +312,7 @@ uint16_t LCD_ReadPoint(uint16_t x, uint16_t y)
         return 0;
 
     LCD_SetWindow(x, y, 1, 1); // 1x1 窗口，定位到目标像素
-    LCD_WR_CMD(lcddev.rdcmd);  // 开始读 GRAM 命令
+    LCD_WR_CMD(s_lcdDev.rdcmd); // 开始读 GRAM 命令
 
     LCD_RD_DATA(); // 哑读（丢弃）
     LCD_RD_DATA();
@@ -394,13 +330,8 @@ uint16_t LCD_ReadPoint(uint16_t x, uint16_t y)
     return (uint16_t)((r << 11) | (g << 5) | b);
 }
 
-/**
- * @brief  画点
- * @param  x:     X坐标
- * @param  y:     Y坐标
- * @param  color: 颜色值（RGB565）
- */
-
+/* 绘图函数 */
+/* 画点（坐标 + RGB565 颜色） */
 void LCD_DrawPoint(uint16_t x, uint16_t y, uint16_t color)
 {
     if (LCD_CoordError(x, y))
@@ -409,38 +340,24 @@ void LCD_DrawPoint(uint16_t x, uint16_t y, uint16_t color)
     /* 设置1x1窗口以确保精确的像素定位 */
     LCD_SetWindow(x, y, 1, 1);
 
-    LCD->LCD_REG = lcddev.wramcmd;
+    LCD->LCD_REG = s_lcdDev.wramcmd;
     LCD->LCD_RAM = color;
 }
 
-/**
- * @brief  画大点（2x2像素）
- * @param  x:     X坐标
- * @param  y:     Y坐标
- * @param  color: 颜色值（RGB565）
- */
-
+/* 画大点（2x2像素） */
 void LCD_DrawBigPoint(uint16_t x, uint16_t y, uint16_t color)
 {
     LCD_Fill(x, y, 2, 2, color); // 绘制一个2x2的大点
 }
 
-/**
- * @brief  画线（Bresenham算法）
- * @param  x1:    起点X坐标
- * @param  y1:    起点Y坐标
- * @param  x2:    终点X坐标
- * @param  y2:    终点Y坐标
- * @param  color: 颜色值（RGB565）
- */
-
+/* 画线（Bresenham算法，起点 -> 终点） */
 void LCD_DrawLine(uint16_t x1, uint16_t y1, uint16_t x2, uint16_t y2, uint16_t color)
 {
     /* 计算增量 */
     int16_t dx = x2 - x1; // X方向总增量
     int16_t dy = y2 - y1; // Y方向总增量
-    int16_t uRow = x1;    // 当前X坐标
-    int16_t uCol = y1;    // 当前Y坐标
+    int16_t cur_x = x1;   // 当前X坐标
+    int16_t cur_y = y1;   // 当前Y坐标
 
     /* 确定步进方向 */
     int8_t incx = (dx > 0) ? 1 : (dx == 0 ? 0 : -1);
@@ -462,8 +379,8 @@ void LCD_DrawLine(uint16_t x1, uint16_t y1, uint16_t x2, uint16_t y2, uint16_t c
     /* 主循环：逐点绘制 */
     for (uint16_t t = 0; t <= distance; t++)
     {
-        /* 绘制当前像素（使用快速画点，直接操作寄存器） */
-        LCD_DrawPoint((uint16_t)uRow, (uint16_t)uCol, color);
+        /* 绘制当前像素 */
+        LCD_DrawPoint((uint16_t)cur_x, (uint16_t)cur_y, color);
 
         /* 累加误差 */
         xerr += dx;
@@ -473,27 +390,19 @@ void LCD_DrawLine(uint16_t x1, uint16_t y1, uint16_t x2, uint16_t y2, uint16_t c
         if (xerr > distance)
         {
             xerr -= distance;
-            uRow += incx;
+            cur_x += incx;
         }
 
         /* Y方向步进判断 */
         if (yerr > distance)
         {
             yerr -= distance;
-            uCol += incy;
+            cur_y += incy;
         }
     }
 }
 
-/**
- * @brief  画矩形
- * @param  x1:    左上角X坐标
- * @param  y1:    左上角Y坐标
- * @param  x2:    右下角X坐标
- * @param  y2:    右下角Y坐标
- * @param  color: 颜色值（RGB565）
- */
-
+/* 画矩形（左上角 + 右下角） */
 void LCD_DrawRectangle(uint16_t x1, uint16_t y1, uint16_t x2, uint16_t y2, uint16_t color)
 {
     LCD_DrawLine(x1, y1, x2, y1, color);
@@ -502,14 +411,7 @@ void LCD_DrawRectangle(uint16_t x1, uint16_t y1, uint16_t x2, uint16_t y2, uint1
     LCD_DrawLine(x2, y1, x2, y2, color);
 }
 
-/**
- * @brief  画圆（Bresenham算法）
- * @param  x:     圆心X坐标
- * @param  y:     圆心Y坐标
- * @param  r:     半径
- * @param  color: 颜色值（RGB565）
- */
-
+/* 画圆（Bresenham算法，圆心 + 半径） */
 void LCD_DrawCircle(uint16_t x, uint16_t y, uint8_t r, uint16_t color)
 {
     if (r == 0)
@@ -547,16 +449,11 @@ void LCD_DrawCircle(uint16_t x, uint16_t y, uint8_t r, uint16_t color)
     }
 }
 
-/**
- * @brief  在指定位置显示一个字符（适配 lcd_font.h）
- * @param  x:        起始X坐标（左上角）
- * @param  y:        起始Y坐标（左上角）
- * @param  ch:       要显示的字符（ASCII 码）
- * @param  size:     字体大小：12/16/24
- * @param  color:    前景色（字符颜色）
- * @param  bg_color: 背景色
+/* 显示字符函数 */
+/*
+ * 在指定位置显示一个字符（适配 lcd_font.h，size: 12/16/24）
+ * x/y 为左上角坐标，color 前景色，bg_color 背景色
  */
-
 void LCD_ShowChar(uint16_t x, uint16_t y, uint8_t ch, uint8_t size,
                   uint16_t color, uint16_t bg_color)
 {
@@ -565,7 +462,7 @@ void LCD_ShowChar(uint16_t x, uint16_t y, uint8_t ch, uint8_t size,
         return;
     if ((ch < (uint8_t)' ') || (ch > (uint8_t)'~'))
         return;
-    if (x >= lcddev.width || y >= lcddev.height)
+    if (x >= s_lcdDev.width || y >= s_lcdDev.height)
         return;
 
     /* 2. 获取字库数据 */
@@ -597,16 +494,16 @@ void LCD_ShowChar(uint16_t x, uint16_t y, uint8_t ch, uint8_t size,
     /* 3. 边界裁剪 */
     uint16_t draw_width = width;
     uint16_t draw_height = height;
-    if (x + draw_width > lcddev.width)
-        draw_width = lcddev.width - x;
-    if (y + draw_height > lcddev.height)
-        draw_height = lcddev.height - y;
+    if (x + draw_width > s_lcdDev.width)
+        draw_width = s_lcdDev.width - x;
+    if (y + draw_height > s_lcdDev.height)
+        draw_height = s_lcdDev.height - y;
     if (draw_width == 0 || draw_height == 0)
         return;
 
     /* 4. 设置窗口，进入批量写入模式 */
     LCD_SetWindow(x, y, draw_width, draw_height);
-    LCD->LCD_REG = lcddev.wramcmd;
+    LCD->LCD_REG = s_lcdDev.wramcmd;
 
     /* 5. 逐行绘制（适配 lcdfont.h：LSB = 左边像素） */
     for (uint8_t row = 0; row < draw_height; row++)
@@ -634,27 +531,18 @@ void LCD_ShowChar(uint16_t x, uint16_t y, uint8_t ch, uint8_t size,
     }
 }
 
-/**
- * @brief  显示字符串（高效批量写入版）
- * @param  x:        起始X坐标
- * @param  y:        起始Y坐标
- * @param  width:    显示区域宽度
- * @param  height:   显示区域高度
- * @param  size:     字体大小（12/16/24）
- * @param  str:      字符串指针
- * @param  color:    前景色
- * @param  bg_color: 背景色
- * @note   一次性设置窗口，所有像素连续写入，无多余命令开销
- *         自动换行，超出区域裁剪
+/*
+ * 显示字符串（高效批量写入版）
+ * 一次性设置窗口，所有像素连续写入，无多余命令开销；自动换行，超出区域裁剪。
+ * width/height 为显示区域大小，size: 12/16/24
  */
-
 void LCD_ShowString(uint16_t x, uint16_t y, uint16_t width, uint16_t height,
                     uint8_t size, const char *str, uint16_t color, uint16_t bg_color)
 {
     /* 1. 参数检查 */
     if (str == NULL || size == 0)
         return;
-    if (x >= lcddev.width || y >= lcddev.height)
+    if (x >= s_lcdDev.width || y >= s_lcdDev.height)
         return;
     if (width == 0 || height == 0)
         return;
@@ -700,11 +588,11 @@ void LCD_ShowString(uint16_t x, uint16_t y, uint16_t width, uint16_t height,
     uint16_t effective_width = (total_lines == 1) ? last_line_width : width;
 
     /* 裁剪到屏幕范围 */
-    if (x + effective_width > lcddev.width)
-        effective_width = lcddev.width - x;
-    if (y + total_height > lcddev.height)
+    if (x + effective_width > s_lcdDev.width)
+        effective_width = s_lcdDev.width - x;
+    if (y + total_height > s_lcdDev.height)
     {
-        total_height = lcddev.height - y;
+        total_height = s_lcdDev.height - y;
         total_lines = total_height / char_height;
     }
     if (effective_width == 0 || total_height == 0)
@@ -712,7 +600,7 @@ void LCD_ShowString(uint16_t x, uint16_t y, uint16_t width, uint16_t height,
 
     /* 4. 一次性设置窗口 */
     LCD_SetWindow(x, y, effective_width, total_height);
-    LCD->LCD_REG = lcddev.wramcmd;
+    LCD->LCD_REG = s_lcdDev.wramcmd;
 
     /* 5. 逐行逐像素填充 */
     for (uint16_t line = 0; line < total_lines; line++)
@@ -798,23 +686,13 @@ void LCD_ShowString(uint16_t x, uint16_t y, uint16_t width, uint16_t height,
     }
 }
 
-/**
- * @brief  显示数字（高位不显示0）
- * @param  x:        起始X坐标
- * @param  y:        起始Y坐标
- * @param  num:      要显示的数字（0~4294967295）
- * @param  len:      总位数
- * @param  size:     字体大小（12/16/24）
- * @param  color:    前景色
- * @param  bg_color: 背景色
- */
-
+/* 显示数字（高位不显示0），len 为总位数，size: 12/16/24 */
 void LCD_ShowNum(uint16_t x, uint16_t y, uint32_t num, uint8_t len,
                  uint8_t size, uint16_t color, uint16_t bg_color)
 {
     if (len == 0 || size == 0)
         return;
-    if (x >= lcddev.width || y >= lcddev.height)
+    if (x >= s_lcdDev.width || y >= s_lcdDev.height)
         return;
 
     /* 预计算 10 的幂（最大支持10位） */
@@ -849,24 +727,16 @@ void LCD_ShowNum(uint16_t x, uint16_t y, uint32_t num, uint8_t len,
     }
 }
 
-/**
- * @brief  显示数字（增强版，支持高位补零和叠加模式）
- * @param  x:        起始X坐标
- * @param  y:        起始Y坐标
- * @param  num:      要显示的数字
- * @param  len:      总位数
- * @param  size:     字体大小（12/16/24）
- * @param  mode:     模式：bit7=1 高位补零，bit0=1 叠加模式
- * @param  color:    前景色
- * @param  bg_color: 背景色
+/*
+ * 显示数字（增强版），mode: bit7=1 高位补零，bit0=1 叠加模式
+ * len 为总位数，size: 12/16/24
  */
-
 void LCD_ShowxNum(uint16_t x, uint16_t y, uint32_t num, uint8_t len,
                   uint8_t size, uint8_t mode, uint16_t color, uint16_t bg_color)
 {
     if (len == 0 || size == 0)
         return;
-    if (x >= lcddev.width || y >= lcddev.height)
+    if (x >= s_lcdDev.width || y >= s_lcdDev.height)
         return;
 
     static const uint32_t pow10[] = {

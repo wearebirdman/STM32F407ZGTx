@@ -4,30 +4,25 @@
 #include <stdio.h>
 #include <string.h>
 
-/* ==================== 内部宏定义 ==================== */
-#define W25Q_CS_LOW() HAL_GPIO_WritePin(W25Q_CS_PORT, W25Q_CS_PIN, GPIO_PIN_RESET)
+/* 内部宏定义 */
+#define W25Q_CS_LOW()  HAL_GPIO_WritePin(W25Q_CS_PORT, W25Q_CS_PIN, GPIO_PIN_RESET)
 #define W25Q_CS_HIGH() HAL_GPIO_WritePin(W25Q_CS_PORT, W25Q_CS_PIN, GPIO_PIN_SET)
 
-/* 超时时间配置（单位：ms） */
+/* 超时时间配置定义（单位：ms） */
 #define W25Q_TIMEOUT_GENERIC 100      // 通用操作超时（读、写）
 #define W25Q_TIMEOUT_SECTOR_ERASE 500 // 扇区擦除超时（典型 40~400ms）
 #define W25Q_TIMEOUT_BLOCK_ERASE 1000 // 块擦除超时
 #define W25Q_TIMEOUT_CHIP_ERASE 90000 // 整片擦除超时（典型 40~80 秒）
 #define W25Q_SPI_TIMEOUT 100          // SPI 单字节超时（ms）
 
-/* ==================== 内部函数声明 ==================== */
+/* 内部函数声明 */
 static uint8_t W25Q_SPI_RW(uint8_t tx);
 static uint8_t W25Q_CheckAddr(uint32_t addr, uint32_t len);
 static uint8_t W25Q_CheckProtected(void);
 static void W25Q_WaitBusyTimeout(uint32_t timeout_ms);
 
-/* ==================== SPI 底层操作 ==================== */
-/**
- * @brief  SPI 单字节收发（内部使用）
- * @param  tx: 发送的字节
- * @retval 接收的字节
- */
-
+/* SPI 底层操作 */
+/* SPI 单字节收发（内部使用），返回接收的字节 */
 static uint8_t W25Q_SPI_RW(uint8_t tx)
 {
     uint8_t rx;
@@ -35,14 +30,8 @@ static uint8_t W25Q_SPI_RW(uint8_t tx)
     return rx;
 }
 
-/* ==================== 内部辅助函数 ==================== */
-/**
- * @brief  检查地址是否越界
- * @param  addr: 起始地址
- * @param  len:  数据长度
- * @retval 0 = 越界, 1 = 合法
- */
-
+/* 内部辅助函数 */
+/* 检查地址是否越界，0 = 越界, 1 = 合法 */
 static uint8_t W25Q_CheckAddr(uint32_t addr, uint32_t len)
 {
     if (len == 0)
@@ -54,11 +43,7 @@ static uint8_t W25Q_CheckAddr(uint32_t addr, uint32_t len)
     return 1;
 }
 
-/**
- * @brief  检查芯片是否处于写保护状态（BP 位非零）
- * @retval 0 = 未保护, 1 = 已保护
- */
-
+/* 检查芯片是否处于写保护状态（BP 位非零），0 = 未保护, 1 = 已保护 */
 static uint8_t W25Q_CheckProtected(void)
 {
     uint8_t sr1 = W25Q_ReadStatus1();
@@ -68,11 +53,7 @@ static uint8_t W25Q_CheckProtected(void)
     return 0;
 }
 
-/**
- * @brief  等待芯片空闲（带超时参数）
- * @param  timeout_ms: 超时时间（毫秒）
- */
-
+/* 等待芯片空闲（带超时参数），超时后直接退出 */
 static void W25Q_WaitBusyTimeout(uint32_t timeout_ms)
 {
     uint32_t timeout = timeout_ms;
@@ -84,14 +65,9 @@ static void W25Q_WaitBusyTimeout(uint32_t timeout_ms)
     }
 }
 
-/* ==================== 初始化与信息读取 ==================== */
-/**
- * @brief  初始化 W25Qxx，验证芯片 ID
- * @retval 错误码
- * @note   会验证制造商 ID、存储类型、容量 ID 是否匹配
- */
-
-W25Q_Error_t W25Q_Init(void)
+/* 初始化与信息读取 */
+/* 初始化 W25Qxx，验证制造商 ID / 存储类型 / 容量 ID 是否匹配 */
+W25QErr_t W25Q_Init(void)
 {
     uint32_t id = W25Q_ReadID();
 
@@ -127,12 +103,8 @@ W25Q_Error_t W25Q_Init(void)
     return W25Q_OK;
 }
 
-/**
- * @brief  获取芯片信息
- * @param  info: 输出参数，芯片信息结构体指针
- */
-
-void W25Q_GetInfo(W25Q_Info_t *info)
+/* 获取芯片信息 */
+void W25Q_GetInfo(W25QInfo_t *info)
 {
     if (info == NULL)
         return;
@@ -150,11 +122,7 @@ void W25Q_GetInfo(W25Q_Info_t *info)
     info->block_count = W25Q_BLOCK_COUNT;
 }
 
-/**
- * @brief  读取芯片 JEDEC ID
- * @retval 24 位 ID（制造商 | 存储类型 | 容量）
- */
-
+/* 读取芯片 JEDEC ID，返回 24 位 ID（制造商 | 存储类型 | 容量） */
 uint32_t W25Q_ReadID(void)
 {
     uint8_t id[3];
@@ -167,12 +135,8 @@ uint32_t W25Q_ReadID(void)
     return (id[0] << 16) | (id[1] << 8) | id[2];
 }
 
-/* ==================== 状态寄存器操作 ==================== */
-/**
- * @brief  读取状态寄存器 1
- * @retval 状态寄存器 1 的值
- */
-
+/* 状态寄存器操作 */
+/* 读取状态寄存器 1 */
 uint8_t W25Q_ReadStatus1(void)
 {
     uint8_t sta;
@@ -183,11 +147,7 @@ uint8_t W25Q_ReadStatus1(void)
     return sta;
 }
 
-/**
- * @brief  读取状态寄存器 2
- * @retval 状态寄存器 2 的值
- */
-
+/* 读取状态寄存器 2 */
 uint8_t W25Q_ReadStatus2(void)
 {
     uint8_t sta;
@@ -198,11 +158,7 @@ uint8_t W25Q_ReadStatus2(void)
     return sta;
 }
 
-/**
- * @brief  读取状态寄存器 3
- * @retval 状态寄存器 3 的值
- */
-
+/* 读取状态寄存器 3 */
 uint8_t W25Q_ReadStatus3(void)
 {
     uint8_t sta;
@@ -213,31 +169,20 @@ uint8_t W25Q_ReadStatus3(void)
     return sta;
 }
 
-/**
- * @brief  检查芯片是否忙碌
- * @retval 0 = 空闲, 1 = 忙碌
- */
-
+/* 检查芯片是否忙碌，0 = 空闲, 1 = 忙碌 */
 uint8_t W25Q_IsBusy(void)
 {
-    return W25Q_ReadStatus1() & W25Q_SR1_BUSY;
+    return (W25Q_ReadStatus1() & W25Q_SR1_BUSY) ? 1 : 0;
 }
 
-/**
- * @brief  检查写使能状态
- * @retval 0 = 未使能, 1 = 已使能
- */
-
+/* 检查写使能状态，0 = 未使能, 1 = 已使能 */
 uint8_t W25Q_IsWriteEnabled(void)
 {
     return (W25Q_ReadStatus1() & W25Q_SR1_WEL) ? 1 : 0;
 }
 
-/* ==================== 写使能与等待 ==================== */
-/**
- * @brief  写使能（任何写入/擦除操作前必须调用）
- */
-
+/* 写使能与等待 */
+/* 写使能（任何写入/擦除操作前必须调用） */
 void W25Q_WriteEnable(void)
 {
     W25Q_CS_LOW();
@@ -245,10 +190,7 @@ void W25Q_WriteEnable(void)
     W25Q_CS_HIGH();
 }
 
-/**
- * @brief  写禁止
- */
-
+/* 写禁止 */
 void W25Q_WriteDisable(void)
 {
     W25Q_CS_LOW();
@@ -256,26 +198,15 @@ void W25Q_WriteDisable(void)
     W25Q_CS_HIGH();
 }
 
-/**
- * @brief  等待芯片空闲（使用默认超时时间）
- * @note   超时时间由 W25Q_TIMEOUT_GENERIC 宏定义
- */
-
+/* 等待芯片空闲（使用默认超时时间 W25Q_TIMEOUT_GENERIC） */
 void W25Q_WaitBusy(void)
 {
     W25Q_WaitBusyTimeout(W25Q_TIMEOUT_GENERIC);
 }
 
-/* ==================== 数据读取 ==================== */
-/**
- * @brief  从指定地址读取数据
- * @param  addr: 起始地址（0 ~ W25Q_CHIP_SIZE-1）
- * @param  buf:  接收缓冲区
- * @param  len:  读取长度（字节）
- * @retval 错误码
- */
-
-W25Q_Error_t W25Q_Read(uint32_t addr, uint8_t *buf, uint32_t len)
+/* 数据读取 */
+/* 从指定地址读取数据（addr: 0 ~ W25Q_CHIP_SIZE-1） */
+W25QErr_t W25Q_Read(uint32_t addr, uint8_t *buf, uint32_t len)
 {
     /* 参数检查 */
     if (buf == NULL || len == 0)
@@ -300,18 +231,13 @@ W25Q_Error_t W25Q_Read(uint32_t addr, uint8_t *buf, uint32_t len)
     return W25Q_OK;
 }
 
-/* ==================== 页写入 ==================== */
-/**
- * @brief  页写入（单次最多 256 字节）
- * @param  addr: 写入地址（建议页对齐）
- * @param  buf:  数据缓冲区
- * @param  len:  写入长度（1~256 字节）
- * @retval 错误码
- * @note   如果数据跨页，硬件会自动回绕到页首，可能导致数据覆盖
- *         建议使用 W25Q_Write() 处理跨页写入
+/* 页写入 */
+/*
+ * 页写入（单次最多 256 字节）
+ * 如果数据跨页，硬件会自动回绕到页首，可能导致数据覆盖，
+ * 调用者应使用 W25Q_Write() 处理跨页
  */
-
-W25Q_Error_t W25Q_PageWrite(uint32_t addr, uint8_t *buf, uint16_t len)
+W25QErr_t W25Q_PageWrite(uint32_t addr, uint8_t *buf, uint16_t len)
 {
     /* 参数检查 */
     if (buf == NULL || len == 0)
@@ -327,16 +253,6 @@ W25Q_Error_t W25Q_PageWrite(uint32_t addr, uint8_t *buf, uint16_t len)
     /* 检查写保护 */
     if (W25Q_CheckProtected())
         return W25Q_ERR_PROTECTED;
-
-    /* 检测跨页 */
-    uint32_t page_start = addr & ~(W25Q_PAGE_SIZE - 1);
-    if (addr + len > page_start + W25Q_PAGE_SIZE)
-    {
-        /*
-         * 跨页警告，硬件会自动回绕到页首，可能导致数据覆盖
-         * 调用者应使用 W25Q_Write() 处理跨页
-         */
-    }
 
     W25Q_WriteEnable();
 
@@ -357,20 +273,14 @@ W25Q_Error_t W25Q_PageWrite(uint32_t addr, uint8_t *buf, uint16_t len)
     return W25Q_OK;
 }
 
-/* ==================== 跨页写入 ==================== */
-/**
- * @brief  任意地址写入任意长度数据（自动处理跨页）
- * @param  addr: 起始地址（0 ~ W25Q_CHIP_SIZE-1）
- * @param  buf:  数据缓冲区
- * @param  len:  写入长度（字节）
- * @retval 错误码
- * @note   此函数会自动将数据拆分为多次页写入，处理跨页边界。
- *         注意：写入前需要确保目标地址所在的扇区已被擦除。
+/*
+ * 任意地址写入任意长度数据（自动处理跨页）
+ * 自动将数据拆分为多次页写入，处理页边界。
+ * 注意：写入前需要确保目标地址所在的扇区已被擦除
  */
-
-W25Q_Error_t W25Q_Write(uint32_t addr, uint8_t *buf, uint32_t len)
+W25QErr_t W25Q_Write(uint32_t addr, uint8_t *buf, uint32_t len)
 {
-    W25Q_Error_t ret;
+    W25QErr_t ret;
     uint32_t remaining = len;
     uint32_t current_addr = addr;
     uint8_t *current_buf = buf;
@@ -410,21 +320,16 @@ W25Q_Error_t W25Q_Write(uint32_t addr, uint8_t *buf, uint32_t len)
     return W25Q_OK;
 }
 
-/* ==================== 擦除操作 ==================== */
-/**
- * @brief  扇区擦除（4KB）
- * @param  addr: 扇区内任意地址（自动对齐到扇区首地址）
- * @retval 错误码
- */
-
-W25Q_Error_t W25Q_SectorErase(uint32_t addr)
+/* 擦除操作 */
+/* 扇区擦除（4KB），addr 为扇区内任意地址（自动对齐到扇区首地址） */
+W25QErr_t W25Q_SectorErase(uint32_t addr)
 {
+    /* 地址越界检查（先查原始地址，避免对齐回绕漏检） */
+    if (addr >= W25Q_CHIP_SIZE)
+        return W25Q_ERR_ADDR;
+
     /* 自动对齐到扇区首地址 */
     uint32_t sector_addr = W25Q_SECTOR_ALIGN(addr);
-
-    /* 地址越界检查 */
-    if (sector_addr >= W25Q_CHIP_SIZE)
-        return W25Q_ERR_ADDR;
 
     /* 检查写保护 */
     if (W25Q_CheckProtected())
@@ -445,20 +350,15 @@ W25Q_Error_t W25Q_SectorErase(uint32_t addr)
     return W25Q_OK;
 }
 
-/**
- * @brief  块擦除（32KB）
- * @param  addr: 块内任意地址（自动对齐到 32KB 块首地址）
- * @retval 错误码
- */
-
-W25Q_Error_t W25Q_BlockErase32K(uint32_t addr)
+/* 块擦除（32KB），addr 为块内任意地址（自动对齐到 32KB 块首地址） */
+W25QErr_t W25Q_BlockErase32K(uint32_t addr)
 {
+    /* 地址越界检查（先查原始地址，避免对齐回绕漏检） */
+    if (addr >= W25Q_CHIP_SIZE)
+        return W25Q_ERR_ADDR;
+
     /* 自动对齐到 32KB 块首地址 */
     uint32_t block_addr = W25Q_BLOCK_32K_ALIGN(addr);
-
-    /* 地址越界检查 */
-    if (block_addr >= W25Q_CHIP_SIZE)
-        return W25Q_ERR_ADDR;
 
     /* 检查写保护 */
     if (W25Q_CheckProtected())
@@ -479,20 +379,15 @@ W25Q_Error_t W25Q_BlockErase32K(uint32_t addr)
     return W25Q_OK;
 }
 
-/**
- * @brief  块擦除（64KB）
- * @param  addr: 块内任意地址（自动对齐到 64KB 块首地址）
- * @retval 错误码
- */
-
-W25Q_Error_t W25Q_BlockErase64K(uint32_t addr)
+/* 块擦除（64KB），addr 为块内任意地址（自动对齐到 64KB 块首地址） */
+W25QErr_t W25Q_BlockErase64K(uint32_t addr)
 {
+    /* 地址越界检查（先查原始地址，避免对齐回绕漏检） */
+    if (addr >= W25Q_CHIP_SIZE)
+        return W25Q_ERR_ADDR;
+
     /* 自动对齐到 64KB 块首地址 */
     uint32_t block_addr = W25Q_BLOCK_ALIGN(addr);
-
-    /* 地址越界检查 */
-    if (block_addr >= W25Q_CHIP_SIZE)
-        return W25Q_ERR_ADDR;
 
     /* 检查写保护 */
     if (W25Q_CheckProtected())
@@ -513,13 +408,8 @@ W25Q_Error_t W25Q_BlockErase64K(uint32_t addr)
     return W25Q_OK;
 }
 
-/**
- * @brief  整片擦除
- * @retval 错误码
- * @note   整片擦除需要较长时间（典型值 40~80 秒）
- */
-
-W25Q_Error_t W25Q_ChipErase(void)
+/* 整片擦除（需要较长时间，典型值 40~80 秒） */
+W25QErr_t W25Q_ChipErase(void)
 {
     /* 检查写保护 */
     if (W25Q_CheckProtected())
@@ -537,11 +427,8 @@ W25Q_Error_t W25Q_ChipErase(void)
     return W25Q_OK;
 }
 
-/* ==================== 电源管理 ==================== */
-/**
- * @brief  进入掉电模式（降低功耗）
- */
-
+/* 电源管理 */
+/* 进入掉电模式（降低功耗） */
 void W25Q_PowerDown(void)
 {
     W25Q_CS_LOW();
@@ -549,11 +436,7 @@ void W25Q_PowerDown(void)
     W25Q_CS_HIGH();
 }
 
-/**
- * @brief  退出掉电模式（唤醒芯片）
- * @note   唤醒后需要等待至少 3μs 才能发送命令
- */
-
+/* 退出掉电模式（唤醒芯片），唤醒后需要等待至少 3μs 才能发送命令 */
 void W25Q_WakeUp(void)
 {
     W25Q_CS_LOW();
@@ -564,27 +447,20 @@ void W25Q_WakeUp(void)
     HAL_Delay(1);
 }
 
-/* ==================== 使用示例 ==================== */
+/* 使用示例 */
 #if 0 // 设置为 1 启用示例代码
 
-/**
- * @brief  W25Qxx 使用示例
- * @note   展示完整的读写流程：
- *         1. 初始化芯片
- *         2. 获取芯片信息
- *         3. 擦除扇区
- *         4. 写入数据
- *         5. 读取数据
- *         6. 验证数据
+/*
+ * W25Qxx 使用示例，展示完整的读写流程：
+ * 初始化芯片 -> 获取芯片信息 -> 擦除扇区 -> 写入数据 -> 读取数据 -> 验证数据
  */
-
 void W25Q_Example(void)
 {
     /* 测试数据 */
     uint8_t write_buf[] = "Hello W25Qxx!";
     uint8_t read_buf[sizeof(write_buf)];
-    W25Q_Info_t info;
-    W25Q_Error_t ret;
+    W25QInfo_t info;
+    W25QErr_t ret;
 
     /* 1. 初始化 */
     ret = W25Q_Init();
@@ -631,7 +507,7 @@ void W25Q_Example(void)
     printf("Write OK!\r\n\r\n");
 
     /* 5. 读取数据 */
-    memset(read_buf, 0, sizeof(read_buf));  // 清零缓冲区
+    memset(read_buf, 0, sizeof(read_buf)); // 清零缓冲区
     printf("Reading %zu bytes from address 0x%06X...\r\n", sizeof(read_buf), W25Q_TEST_ADDR);
     ret = W25Q_Read(W25Q_TEST_ADDR, read_buf, sizeof(read_buf));
     if (ret != W25Q_OK)
@@ -656,4 +532,4 @@ void W25Q_Example(void)
     }
 }
 
-#endif /* W25Q_EXAMPLE_ENABLE */
+#endif /* 示例代码 */

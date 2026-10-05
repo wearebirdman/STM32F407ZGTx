@@ -4,39 +4,30 @@
 #include <stdio.h>
 #include <string.h>
 
-/*
- * ==================== 内部宏定义 ====================
- * 设备地址左移1位（8位写地址），用于I2C发送
- */
+/* 内部宏定义 */
+#define AT24C02_WRITE_ADDR   ((AT24C02_DEV_ADDR << 1) & 0xFE) // 写地址0xA0（7位地址左移1位）
+#define AT24C02_I2C_TIMEOUT  100                              // I2C 超时时间（ms）
+#define AT24C02_WRITE_TIMEOUT 10                              // 写周期等待超时（AT24C02最大5ms，留余量）
 
-#define AT24C02_WRITE_ADDR ((AT24C02_DEV_ADDR << 1) & 0xFE)         // 写地址0xA0
-#define AT24C02_READ_ADDR (((AT24C02_DEV_ADDR << 1) | 0x01) & 0xFF) // 读地址0xA1
+/* 内部函数声明 */
+static uint8_t AT24C02_CheckDevice(void);
+static void AT24C02_WaitWriteComplete(void);
+static uint8_t AT24C02_CheckAddr(uint16_t addr, uint16_t len);
 
-/* I2C超时时间（ms） */
-#define AT24C02_I2C_TIMEOUT 100
-/* 写周期等待超时（AT24C02最大5ms，留余量） */
-#define AT24C02_WRITE_TIMEOUT 10
-
-/* ==================== 内部辅助函数 ==================== */
-/**
- * @brief  检测设备是否存在（发送设备地址，检查ACK）
- * @retval 1：存在，0：不存在
- */
-
+/* 检测设备是否存在（发送设备地址，检查ACK），1 = 存在, 0 = 不存在 */
 static uint8_t AT24C02_CheckDevice(void)
 {
-    HAL_StatusTypeDef status;
     /* 尝试发送写地址，检测是否应答 */
-    status = HAL_I2C_IsDeviceReady(&AT24C02_I2C, AT24C02_WRITE_ADDR, 3, AT24C02_I2C_TIMEOUT);
+    HAL_StatusTypeDef status =
+        HAL_I2C_IsDeviceReady(&AT24C02_I2C, AT24C02_WRITE_ADDR, 3, AT24C02_I2C_TIMEOUT);
     return (status == HAL_OK) ? 1 : 0;
 }
 
-/**
- * @brief  等待内部写周期完成（通过轮询设备应答）
- * @note   每次写操作后，芯片内部会进入写周期（最大5ms），期间不响应I2C
+/*
+ * 等待内部写周期完成（通过轮询设备应答）
+ * 每次写操作后，芯片内部会进入写周期（最大5ms），期间不响应I2C
  */
-
-void AT24C02_WaitWriteComplete(void)
+static void AT24C02_WaitWriteComplete(void)
 {
     uint32_t timeout = AT24C02_WRITE_TIMEOUT;
     while (timeout--)
@@ -47,13 +38,7 @@ void AT24C02_WaitWriteComplete(void)
     }
 }
 
-/**
- * @brief  检查地址是否越界
- * @param  addr: 起始地址
- * @param  len:  数据长度
- * @retval 0 = 越界, 1 = 合法
- */
-
+/* 检查地址是否越界，0 = 越界, 1 = 合法 */
 static uint8_t AT24C02_CheckAddr(uint16_t addr, uint16_t len)
 {
     if (len == 0)
@@ -65,25 +50,16 @@ static uint8_t AT24C02_CheckAddr(uint16_t addr, uint16_t len)
     return 1;
 }
 
-/* ==================== 初始化与信息读取 ==================== */
-/**
- * @brief  初始化AT24C02，检测设备是否存在
- * @retval 错误码
- */
-
-AT24C02_Error_t AT24C02_Init(void)
+/* 初始化AT24C02，检测设备是否存在 */
+AT24C02Err_t AT24C02_Init(void)
 {
     if (!AT24C02_CheckDevice())
         return AT24C02_ERR_DEVICE;
     return AT24C02_OK;
 }
 
-/**
- * @brief  获取芯片信息
- * @param  info: 输出参数，芯片信息结构体指针
- */
-
-void AT24C02_GetInfo(AT24C02_Info_t *info)
+/* 获取芯片信息 */
+void AT24C02_GetInfo(AT24C02Info_t *info)
 {
     if (info == NULL)
         return;
@@ -93,16 +69,8 @@ void AT24C02_GetInfo(AT24C02_Info_t *info)
     info->dev_addr = AT24C02_DEV_ADDR;
 }
 
-/* ==================== 数据读取 ==================== */
-/**
- * @brief  从指定地址读取数据
- * @param  addr: 起始地址（0 ~ AT24C02_CHIP_SIZE-1）
- * @param  buf:  接收缓冲区
- * @param  len:  读取长度（字节）
- * @retval 错误码
- */
-
-AT24C02_Error_t AT24C02_Read(uint16_t addr, uint8_t *buf, uint16_t len)
+/* 从指定地址读取数据（addr: 0 ~ AT24C02_CHIP_SIZE-1） */
+AT24C02Err_t AT24C02_Read(uint16_t addr, uint8_t *buf, uint16_t len)
 {
     /* 参数检查 */
     if (buf == NULL || len == 0)
@@ -126,18 +94,12 @@ AT24C02_Error_t AT24C02_Read(uint16_t addr, uint8_t *buf, uint16_t len)
     return AT24C02_OK;
 }
 
-/* ==================== 页写入 ==================== */
-/**
- * @brief  页写入（单次最多16字节）
- * @param  addr: 写入起始地址（页内偏移）
- * @param  buf:  数据缓冲区
- * @param  len:  写入长度（1~16字节）
- * @retval 错误码
- * @note   如果数据跨页，硬件会自动回绕到页首，可能导致数据覆盖
- *         建议使用 AT24C02_Write() 处理跨页写入
+/*
+ * 页写入（单次最多16字节）
+ * 如果数据跨页，硬件会自动回绕到页首，可能导致数据覆盖，
+ * 建议使用 AT24C02_Write() 处理跨页写入
  */
-
-AT24C02_Error_t AT24C02_PageWrite(uint16_t addr, uint8_t *buf, uint16_t len)
+AT24C02Err_t AT24C02_PageWrite(uint16_t addr, uint8_t *buf, uint16_t len)
 {
     /* 参数检查 */
     if (buf == NULL || len == 0)
@@ -168,20 +130,13 @@ AT24C02_Error_t AT24C02_PageWrite(uint16_t addr, uint8_t *buf, uint16_t len)
     return AT24C02_OK;
 }
 
-/* ==================== 跨页写入 ==================== */
-/**
- * @brief  任意地址写入任意长度数据（自动处理跨页）
- * @param  addr: 起始地址（0 ~ AT24C02_CHIP_SIZE-1）
- * @param  buf:  数据缓冲区
- * @param  len:  写入长度（字节）
- * @retval 错误码
- * @note   自动将数据拆分为多次页写入，处理页边界。
- *         每次页写入后等待写周期完成。
+/*
+ * 任意地址写入任意长度数据（自动处理跨页）
+ * 自动将数据拆分为多次页写入，处理页边界，每次页写入后等待写周期完成
  */
-
-AT24C02_Error_t AT24C02_Write(uint16_t addr, uint8_t *buf, uint16_t len)
+AT24C02Err_t AT24C02_Write(uint16_t addr, uint8_t *buf, uint16_t len)
 {
-    AT24C02_Error_t ret;
+    AT24C02Err_t ret;
     uint16_t remaining = len;
     uint16_t current_addr = addr;
     uint8_t *current_buf = buf;
@@ -213,7 +168,6 @@ AT24C02_Error_t AT24C02_Write(uint16_t addr, uint8_t *buf, uint16_t len)
          * 实际上PageWrite内部调用WaitWriteComplete是在写入前，所以写入后需要等待
          * 这里为了可靠，在每次PageWrite后主动等待
          */
-
         AT24C02_WaitWriteComplete();
 
         /* 更新指针和剩余长度 */
@@ -225,26 +179,20 @@ AT24C02_Error_t AT24C02_Write(uint16_t addr, uint8_t *buf, uint16_t len)
     return AT24C02_OK;
 }
 
-/* ==================== 使用示例 ==================== */
+/* 使用示例 */
 #if 1 // 设置为1启用示例代码
 
-/**
- * @brief  AT24C02 使用示例
- * @note   展示完整的读写流程：
- *         1. 初始化芯片
- *         2. 获取芯片信息
- *         3. 写入数据（自动跨页）
- *         4. 读取数据
- *         5. 验证数据
+/*
+ * AT24C02 使用示例，展示完整的读写流程：
+ * 初始化芯片 -> 获取芯片信息 -> 写入数据（自动跨页）-> 读取数据 -> 验证数据
  */
-
 void AT24C02_Example(void)
 {
     /* 测试数据 */
     uint8_t write_buf[] = "Hello AT24C02!";
     uint8_t read_buf[sizeof(write_buf)];
-    AT24C02_Info_t info;
-    AT24C02_Error_t ret;
+    AT24C02Info_t info;
+    AT24C02Err_t ret;
 
     /* 1. 初始化 */
     ret = AT24C02_Init();
@@ -299,4 +247,4 @@ void AT24C02_Example(void)
     }
 }
 
-#endif /* AT24C02_EXAMPLE_ENABLE */
+#endif /* 示例代码 */

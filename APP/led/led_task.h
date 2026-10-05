@@ -6,6 +6,6 @@
 #include "main.h"
 #include "cmsis_os.h"
 
-void led_proc(void *argument);
+void led_disp(void *argument);
 
-#endif
+#endif /* __LED_TASK_H */

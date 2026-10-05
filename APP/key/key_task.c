@@ -1,14 +1,16 @@
 #include "key_task.h"
 #include "key.h"
-#include "display.h"
-#include "home_task.h"
 #include "led.h"
 
 #include <stdio.h>
 
+extern osMessageQueueId_t q_KeyMsgHandle;
+extern osMessageQueueId_t q_LedReqHandle;
+
 void key_proc(void *argument)
 {
     KeyMsg_t key_msg;
+    LedReq_t led_req;
 
     Key_Init();
     printf("Key Init Done!\r\n");
@@ -18,28 +20,34 @@ void key_proc(void *argument)
         key_msg = Key_Scan();
         switch (key_msg.key_id) 
         {
-            case KEY_ID_1:
+            case KEY_1_ID:
                 if (key_msg.event == KEY_EVENT_SHORT_PRESS) 
                 {
-                    printf("Key_1 Pressed -> kick calibration\r\n");
-                    led_toggle(LED1);
+                    //printf("Key_1 Pressed\r\n");
+                    led_req.led_id = LED_1_ID;
+                    led_req.state = LED_TOGGLE;
+                    osMessageQueuePut(q_LedReqHandle, &led_req, 0, 0);
                 }
                 break;
-            case KEY_ID_2:
+            case KEY_2_ID:
                 if (key_msg.event == KEY_EVENT_SHORT_PRESS) 
                 {
-                    printf("Key_2 Pressed\r\n");
-                    led_toggle(LED2);
+                    //printf("Key_2 Pressed\r\n");
+                    led_req.led_id = LED_2_ID;
+                    led_req.state = LED_TOGGLE;
+                    osMessageQueuePut(q_LedReqHandle, &led_req, 0, 0);
                 }
                 break;
-            case KEY_ID_3:
+            case KEY_3_ID:
                 if (key_msg.event == KEY_EVENT_SHORT_PRESS) 
                 {
-                    printf("Key_3 Pressed\r\n");
-                    led_toggle(LED3);
+                    //printf("Key_3 Pressed\r\n");
+                    led_req.led_id = LED_3_ID;
+                    led_req.state = LED_TOGGLE;
+                    osMessageQueuePut(q_LedReqHandle, &led_req, 0, 0);
                 }
                 break;
-            case KEY_ID_NONE:
+            case KEY_NONE_ID:
                 break;
             default:
                 break;

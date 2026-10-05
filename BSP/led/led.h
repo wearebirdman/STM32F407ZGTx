@@ -3,34 +3,44 @@
 
 #include "main.h"
 
-// ==================== LED 引脚定义 ====================
-// 低电平点亮
-#define LED1_PIN              GPIO_PIN_8
-#define LED1_PORT             GPIOF
-#define LED1_ON_LEVEL         GPIO_PIN_RESET
-#define LED1_OFF_LEVEL        GPIO_PIN_SET
+/* LED定义宏 */
+#define LED_1_PORT             GPIOF
+#define LED_1_PIN              GPIO_PIN_8
+#define LED_1_OFF_LEVEL        GPIO_PIN_SET
+#define LED_1_ON_LEVEL         GPIO_PIN_RESET
+#define LED_2_PORT             GPIOF
+#define LED_2_PIN              GPIO_PIN_9
+#define LED_2_OFF_LEVEL        GPIO_PIN_SET
+#define LED_2_ON_LEVEL         GPIO_PIN_RESET
+#define LED_3_PORT             GPIOF
+#define LED_3_PIN              GPIO_PIN_10
+#define LED_3_OFF_LEVEL        GPIO_PIN_SET
+#define LED_3_ON_LEVEL         GPIO_PIN_RESET
 
-#define LED2_PIN              GPIO_PIN_9
-#define LED2_PORT             GPIOF
-#define LED2_ON_LEVEL         GPIO_PIN_RESET
-#define LED2_OFF_LEVEL        GPIO_PIN_SET
-
-#define LED3_PIN              GPIO_PIN_10
-#define LED3_PORT             GPIOF
-#define LED3_ON_LEVEL         GPIO_PIN_RESET
-#define LED3_OFF_LEVEL        GPIO_PIN_SET
-
-// ==================== LED 编号枚举 ====================
+/* LED ID枚举类型 */
 typedef enum {
-    LED1 = 0,
-    LED2,
-    LED3,
-} led_t;
+    LED_1_ID = 1,
+    LED_2_ID = 2,
+    LED_3_ID = 3,
+} LedID_t;
 
-// ==================== 函数声明 ====================
-void led_on(led_t led);
-void led_off(led_t led);
-void led_toggle(led_t led);
+/* LED状态枚举类型 */
+typedef enum {
+    LED_OFF = 0,
+    LED_ON = 1,
+    LED_TOGGLE = 2,
+} LedState_t;
+
+/* LED请求结构体 */
+typedef struct {
+    uint8_t  led_id;
+    uint8_t  state;
+} LedReq_t;
+
+/* LED函数声明 */
+void Led_On(LedID_t led_id);
+void Led_Off(LedID_t led_id);
+void Led_Toggle(LedID_t led_id);
+void Led_Refresh(LedReq_t led_req);
 
 #endif /* __LED_H */
-

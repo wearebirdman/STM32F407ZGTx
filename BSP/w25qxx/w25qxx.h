@@ -3,19 +3,16 @@
 
 #include "main.h"
 
-/* ==================== 你只需要改这里 ==================== */
+/* SPI 与片选引脚配置宏 */
 #define W25Q_SPI     hspi1
 #define W25Q_CS_PORT GPIOG
 #define W25Q_CS_PIN  GPIO_PIN_15
 
-/*
- * 选择使用的芯片型号（取消注释其中一个）
- * #define W25Q32
- */
-
+/* 芯片型号选择（取消注释其中一个） */
+//#define W25Q32
 #define W25Q128
-/* ====================================================== */
-/* ==================== 芯片容量通用参数（所有型号相同）==================== */
+
+/* 芯片容量通用参数定义（所有型号相同） */
 #define W25Q_PAGE_SIZE      256   // 页大小：256 字节
 #define W25Q_SECTOR_SIZE    4096  // 扇区大小：4KB,一个扇区包含 16 个页
 #define W25Q_BLOCK_SIZE     65536 // 块大小：64KB,一个块包含 16 个扇区
@@ -38,35 +35,35 @@
 #define W25Q_BLOCK_COUNT  2048        // 块数量 (128MB / 64KB)
 #define W25Q_EXPECTED_ID  0xEF4018    // JEDEC ID (Winbond 0xEF, Type 0x40, Size 0x18)
 #endif
-/*
- * 使用24位地址模式，最大支持16MB容量的芯片
- * 低8位地址（A0-A7）：页偏移量
- * 中8位地址（A8-A15）：A8-A11为页号，A12-A15为块内扇区号
- * 高8位地址（A16-A23）：块号
- * ======================================================
- */
 
 /* 检查是否选择了芯片型号 */
 #ifndef W25Q_CHIP_SIZE
 #error "Please define W25Q32 or W25Q128 in w25qxx.h"
 #endif
 
-/* ==================== 常用地址宏定义 ==================== */
+/*
+ * 使用24位地址模式，最大支持16MB容量的芯片：
+ * 低8位地址（A0-A7）：页偏移量
+ * 中8位地址（A8-A15）：A8-A11为页号，A12-A15为块内扇区号
+ * 高8位地址（A16-A23）：块号
+ */
+
+/* 常用地址宏 */
 #define W25Q_TEST_ADDR        0x000000                            // 测试地址（扇区首地址）
 #define W25Q_LAST_SECTOR_ADDR (W25Q_CHIP_SIZE - W25Q_SECTOR_SIZE) // 最后一个扇区首地址
 
-/* ==================== 地址对齐辅助宏 ==================== */
+/* 地址对齐辅助宏 */
 #define W25Q_PAGE_ALIGN(addr)      ((addr) & ~(W25Q_PAGE_SIZE - 1))      // 页对齐
 #define W25Q_SECTOR_ALIGN(addr)    ((addr) & ~(W25Q_SECTOR_SIZE - 1))    // 扇区对齐
 #define W25Q_BLOCK_ALIGN(addr)     ((addr) & ~(W25Q_BLOCK_SIZE - 1))     // 块对齐
 #define W25Q_BLOCK_32K_ALIGN(addr) ((addr) & ~(W25Q_BLOCK_32K_SIZE - 1)) // 32KB 块对齐
 
-/* ==================== 地址检查辅助宏 ==================== */
+/* 地址检查辅助宏 */
 #define W25Q_IS_SECTOR_ADDR(addr)    (((addr) % W25Q_SECTOR_SIZE) == 0)    // 是否为扇区首地址
 #define W25Q_IS_BLOCK_64K_ADDR(addr) (((addr) % W25Q_BLOCK_SIZE) == 0)     // 是否为 64KB 块首地址
 #define W25Q_IS_BLOCK_32K_ADDR(addr) (((addr) % W25Q_BLOCK_32K_SIZE) == 0) // 是否为 32KB 块首地址
 
-/* ==================== W25Q 指令集 ==================== */
+/* W25Q 指令集定义 */
 #define W25Q_JEDEC_ID           0x9F // 读取 JEDEC ID
 #define W25Q_READ               0x03 // 读数据
 #define W25Q_FAST_READ          0x0B // 快速读
@@ -86,7 +83,7 @@
 #define W25Q_POWER_DOWN         0xB9 // 掉电模式
 #define W25Q_RELEASE_POWER_DOWN 0xAB // 释放掉电模式
 
-/* ==================== W25Q 状态寄存器 1 位定义 ==================== */
+/* W25Q 状态寄存器 1 位定义 */
 #define W25Q_SR1_BUSY 0x01 // 忙标志（1 = 忙）
 #define W25Q_SR1_WEL  0x02 // 写使能锁存（1 = 已使能）
 #define W25Q_SR1_BP0  0x04 // 块保护位 0
@@ -96,7 +93,7 @@
 #define W25Q_SR1_SEC  0x40 // 扇区/块保护
 #define W25Q_SR1_SRP0 0x80 // 状态寄存器保护 0
 
-/* ==================== 错误码枚举 ==================== */
+/* 错误码定义 */
 typedef enum {
     W25Q_OK = 0,        // 成功
     W25Q_ERR_ID,        // 芯片 ID 错误
@@ -104,9 +101,9 @@ typedef enum {
     W25Q_ERR_PROTECTED, // 写保护
     W25Q_ERR_ADDR,      // 地址越界
     W25Q_ERR_PARAM,     // 参数错误
-} W25Q_Error_t;
+} W25QErr_t;
 
-/* ==================== 芯片信息结构体 ==================== */
+/* 芯片信息结构体 */
 typedef struct {
     uint32_t jedec_id;     // JEDEC ID
     uint8_t manufacturer;  // 制造商 ID
@@ -117,29 +114,29 @@ typedef struct {
     uint32_t page_count;   // 页数量
     uint32_t sector_count; // 扇区数量
     uint32_t block_count;  // 块数量
-} W25Q_Info_t;
+} W25QInfo_t;
 
-/* ==================== 函数声明 ==================== */
-W25Q_Error_t W25Q_Init(void);
-void W25Q_GetInfo(W25Q_Info_t *info);
-uint32_t W25Q_ReadID(void);
-uint8_t W25Q_ReadStatus1(void);
-uint8_t W25Q_ReadStatus2(void);
-uint8_t W25Q_ReadStatus3(void);
-void W25Q_WriteEnable(void);
-void W25Q_WriteDisable(void);
-void W25Q_WaitBusy(void);
-W25Q_Error_t W25Q_Read(uint32_t addr, uint8_t *buf, uint32_t len);
-W25Q_Error_t W25Q_Write(uint32_t addr, uint8_t *buf, uint32_t len);
-W25Q_Error_t W25Q_PageWrite(uint32_t addr, uint8_t *buf, uint16_t len);
-W25Q_Error_t W25Q_SectorErase(uint32_t addr);
-W25Q_Error_t W25Q_BlockErase32K(uint32_t addr);
-W25Q_Error_t W25Q_BlockErase64K(uint32_t addr);
-W25Q_Error_t W25Q_ChipErase(void);
-void W25Q_PowerDown(void);
-void W25Q_WakeUp(void);
-uint8_t W25Q_IsBusy(void);
-uint8_t W25Q_IsWriteEnabled(void);
+/* 函数接口 */
+W25QErr_t W25Q_Init(void);                                              // 初始化（验证芯片ID）
+void W25Q_GetInfo(W25QInfo_t *info);                                    // 获取芯片信息
+uint32_t W25Q_ReadID(void);                                             // 读取 JEDEC ID
+uint8_t W25Q_ReadStatus1(void);                                         // 读状态寄存器 1
+uint8_t W25Q_ReadStatus2(void);                                         // 读状态寄存器 2
+uint8_t W25Q_ReadStatus3(void);                                         // 读状态寄存器 3
+void W25Q_WriteEnable(void);                                            // 写使能
+void W25Q_WriteDisable(void);                                           // 写禁止
+void W25Q_WaitBusy(void);                                               // 等待芯片空闲（默认超时）
+W25QErr_t W25Q_Read(uint32_t addr, uint8_t *buf, uint32_t len);         // 读取数据
+W25QErr_t W25Q_Write(uint32_t addr, uint8_t *buf, uint32_t len);        // 写入数据（自动处理跨页）
+W25QErr_t W25Q_PageWrite(uint32_t addr, uint8_t *buf, uint16_t len);    // 页写入（单次最多256字节）
+W25QErr_t W25Q_SectorErase(uint32_t addr);                              // 扇区擦除（4KB）
+W25QErr_t W25Q_BlockErase32K(uint32_t addr);                            // 块擦除（32KB）
+W25QErr_t W25Q_BlockErase64K(uint32_t addr);                            // 块擦除（64KB）
+W25QErr_t W25Q_ChipErase(void);                                         // 整片擦除
+void W25Q_PowerDown(void);                                              // 进入掉电模式
+void W25Q_WakeUp(void);                                                 // 退出掉电模式
+uint8_t W25Q_IsBusy(void);                                              // 查询芯片是否忙碌
+uint8_t W25Q_IsWriteEnabled(void);                                      // 查询写使能状态
+void W25Q_Example(void);                                                // 使用示例
 
-void W25Q_Example(void);
 #endif /* __W25QXX_H */

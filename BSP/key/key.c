@@ -1,8 +1,7 @@
 #include "key.h"
 
 /* 按键状态定义 */
-typedef enum
-{
+typedef enum {
     KEY_STATE_IDLE = 0,
     KEY_STATE_DEBOUNCE,
     KEY_STATE_PRESSED,
@@ -11,8 +10,7 @@ typedef enum
 } KeyState_t;
 
 /* 按键上下文结构体 */
-typedef struct
-{
+typedef struct {
     GPIO_TypeDef *port;
     uint16_t pin;
     uint8_t active_level;
@@ -35,21 +33,21 @@ static uint8_t Key_GetState(uint8_t key_id)
 /* 初始化按键 */
 void Key_Init(void)
 {
-    s_keyCtx[KEY_ID_WK].port = KEY_WK_PORT;
-    s_keyCtx[KEY_ID_WK].pin = KEY_WK_PIN;
-    s_keyCtx[KEY_ID_WK].active_level = KEY_WK_ACTIVE_LEVEL;
+    s_keyCtx[KEY_WK_ID].port = KEY_WK_PORT;
+    s_keyCtx[KEY_WK_ID].pin = KEY_WK_PIN;
+    s_keyCtx[KEY_WK_ID].active_level = KEY_WK_ACTIVE_LEVEL;
 
-    s_keyCtx[KEY_ID_1].port = KEY_1_PORT;
-    s_keyCtx[KEY_ID_1].pin = KEY_1_PIN;
-    s_keyCtx[KEY_ID_1].active_level = KEY_1_ACTIVE_LEVEL;
+    s_keyCtx[KEY_1_ID].port = KEY_1_PORT;
+    s_keyCtx[KEY_1_ID].pin = KEY_1_PIN;
+    s_keyCtx[KEY_1_ID].active_level = KEY_1_ACTIVE_LEVEL;
 
-    s_keyCtx[KEY_ID_2].port = KEY_2_PORT;
-    s_keyCtx[KEY_ID_2].pin = KEY_2_PIN;
-    s_keyCtx[KEY_ID_2].active_level = KEY_2_ACTIVE_LEVEL;
+    s_keyCtx[KEY_2_ID].port = KEY_2_PORT;
+    s_keyCtx[KEY_2_ID].pin = KEY_2_PIN;
+    s_keyCtx[KEY_2_ID].active_level = KEY_2_ACTIVE_LEVEL;
 
-    s_keyCtx[KEY_ID_3].port = KEY_3_PORT;
-    s_keyCtx[KEY_ID_3].pin = KEY_3_PIN;
-    s_keyCtx[KEY_ID_3].active_level = KEY_3_ACTIVE_LEVEL;   
+    s_keyCtx[KEY_3_ID].port = KEY_3_PORT;
+    s_keyCtx[KEY_3_ID].pin = KEY_3_PIN;
+    s_keyCtx[KEY_3_ID].active_level = KEY_3_ACTIVE_LEVEL;
 
     for (uint8_t i = KEY_WK_UNUSED; i < KEY_NUM; i++)
     {
@@ -64,7 +62,7 @@ void Key_Init(void)
 /* 扫描按键 */
 KeyMsg_t Key_Scan(void)
 {
-    KeyMsg_t msg = {KEY_ID_NONE, KEY_EVENT_NONE};
+    KeyMsg_t msg = {KEY_NONE_ID, KEY_EVENT_NONE};
 
     if (!s_initialized)
         return msg;
@@ -85,7 +83,6 @@ KeyMsg_t Key_Scan(void)
                 ctx->tick_start = current_tick;
             }
             break;
-
         case KEY_STATE_DEBOUNCE:
             if (pin_state == 1)
             {
@@ -94,7 +91,7 @@ KeyMsg_t Key_Scan(void)
                     /* 消抖通过 */
                     if (ctx->click_count >= 1)
                     {
-                        /* 第二次按下 → 双击 */
+                        /* 双击事件处理 */
                         msg.key_id = (KeyID_t)i;
                         msg.event = KEY_EVENT_DOUBLE_CLICK;
                         ctx->state = KEY_STATE_LONG_PRESS_HOLD;
@@ -125,7 +122,6 @@ KeyMsg_t Key_Scan(void)
                 }
             }
             break;
-
         case KEY_STATE_PRESSED:
             if (pin_state == 0)
             {
@@ -136,7 +132,7 @@ KeyMsg_t Key_Scan(void)
             }
             else if (current_tick - ctx->tick_start >= KEY_LONG_PRESS_MS)
             {
-                /* 长按触发 */
+                /* 长按事件处理 */
                 msg.key_id = (KeyID_t)i;
                 msg.event = KEY_EVENT_LONG_PRESS;
                 ctx->state = KEY_STATE_LONG_PRESS_HOLD;
@@ -144,7 +140,6 @@ KeyMsg_t Key_Scan(void)
                 return msg;
             }
             break;
-
         case KEY_STATE_WAIT_RELEASE:
             if (pin_state == 1)
             {
@@ -162,7 +157,6 @@ KeyMsg_t Key_Scan(void)
                 return msg;
             }
             break;
-
         case KEY_STATE_LONG_PRESS_HOLD:
             if (pin_state == 0)
             {
@@ -170,13 +164,11 @@ KeyMsg_t Key_Scan(void)
                 ctx->click_count = 0;
             }
             break;
-
         default:
             ctx->state = KEY_STATE_IDLE;
             ctx->click_count = 0;
             break;
         }
     }
-
     return msg;
 }
