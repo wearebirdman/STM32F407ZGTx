@@ -13,12 +13,12 @@ typedef struct {
 #define HOME_MENU_PAGES 1 // 菜单页数；加页时扩展 s_tile_list 并改此值
 
 static const HomeTile_t s_tile_list[HOME_TILE_NUM] = {
-    { "Calib", UI_PAGE_CALIB, 0xE53935 }, // 触摸校准
-    { "Draw",  UI_PAGE_DRAW,  0x1E88E5 }, // 画板
-    { "LED",   UI_PAGE_LED,   0x43A047 }, // LED 演示
-    { "Key",   UI_PAGE_KEY,   0xFB8C00 }, // 按键演示
-    { "Set",   UI_PAGE_SET,   0x8E24AA }, // 系统设置
-    { "About", UI_PAGE_ABOUT, 0x757575 }, // 关于
+    { "Calib",  UI_PAGE_CALIB,  0xE53935 }, // 触摸校准
+    { "Draw",   UI_PAGE_DRAW,   0x1E88E5 }, // 画板
+    { "Osc",    UI_PAGE_OSC,    0x43A047 }, // 示波器
+    { "Serial", UI_PAGE_SERIAL, 0xFB8C00 }, // 串口助手
+    { "Set",    UI_PAGE_SET,    0x8E24AA }, // 系统设置
+    { "About",  UI_PAGE_ABOUT,  0x757575 }, // 关于
 };
 
 static uint8_t s_menu_page; // 当前菜单页（0 起）

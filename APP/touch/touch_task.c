@@ -1,7 +1,6 @@
 #include "touch_task.h"
 #include "touch.h"
-
-#include <stdio.h>
+#include "uart_task.h"
 
 #define TEV_MOVE_MIN 2 // 行笔位移阈值（px）：HOLD 事件抖动过滤
 
@@ -16,7 +15,7 @@ void touch_proc(void *argument)
     AT24C02_Init(); // 检测 EEPROM 在位（I2C 外设由 MX_I2C1_Init 初始化）
 #endif
     Touch_Init(); // 内部加载 EEPROM 校准参数（未校准过则输出原始 AD 值）
-    printf("Touch Init Done!\r\n");
+    Uart_Printf("Touch Init Done!\r\n");
 
     for (;;)
     {

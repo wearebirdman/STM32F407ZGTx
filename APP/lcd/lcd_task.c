@@ -1,11 +1,11 @@
 #include "lcd_task.h"
 #include "lcd.h"
 #include "ui.h"
-#include "ui_msg.h"
 #include "ui_port.h"
+#include "uart_task.h"
 #include "lvgl.h"
 
-#include <stdio.h>
+extern osMessageQueueId_t q_UiMsgHandle;
 
 void lcd_disp(void *argument)
 {
@@ -14,7 +14,7 @@ void lcd_disp(void *argument)
 
     LCD_Init();      // LCD 硬件初始化
     Ui_PortInit();   // LVGL 显示/输入适配 + 建界面
-    printf("LCD + LVGL Init Done!\r\n");
+    Uart_Printf("LCD + LVGL Init Done!\r\n");
 
     for (;;)
     {

@@ -21,10 +21,19 @@
 #include "usart.h"
 
 /* USER CODE BEGIN 0 */
-#include <stdio.h>
+#include <string.h>
+#include "FreeRTOS.h"
+#include "task.h"
+#include "cmsis_os.h"
+#include "uart_task.h"
+
+extern osMessageQueueId_t q_Usart1RxMsgHandle;
+
+static uint8_t rx1_buf[64]; // DMA 落货区：模块私有，有效字节由 ISR 拷贝进消息后复用
 /* USER CODE END 0 */
 
 UART_HandleTypeDef huart1;
+DMA_HandleTypeDef hdma_usart1_rx;
 
 /* USART1 init function */
 
@@ -51,7 +60,15 @@ void MX_USART1_UART_Init(void)
     Error_Handler();
   }
   /* USER CODE BEGIN USART1_Init 2 */
+  /* 1.若使用普通中断 */
+  //HAL_UART_Receive_IT(&huart1, rx1_buf, 5);
 
+  /* 2.若使用DMA,(定长接收)，可以配合dma空闲中断使用，接收长度设置为256 */
+  //HAL_UART_Receive_DMA(&huart1, rx1_buf, 5);
+
+  /* 3.若使用DMA不定长度接收中断 */ 
+  HAL_UARTEx_ReceiveToIdle_DMA(&huart1, rx1_buf, sizeof(rx1_buf));
+  __HAL_DMA_DISABLE_IT(&hdma_usart1_rx, DMA_IT_HT);
   /* USER CODE END USART1_Init 2 */
 
 }
@@ -80,6 +97,28 @@ void HAL_UART_MspInit(UART_HandleTypeDef* uartHandle)
     GPIO_InitStruct.Alternate = GPIO_AF7_USART1;
     HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
 
+    /* USART1 DMA Init */
+    /* USART1_RX Init */
+    hdma_usart1_rx.Instance = DMA2_Stream2;
+    hdma_usart1_rx.Init.Channel = DMA_CHANNEL_4;
+    hdma_usart1_rx.Init.Direction = DMA_PERIPH_TO_MEMORY;
+    hdma_usart1_rx.Init.PeriphInc = DMA_PINC_DISABLE;
+    hdma_usart1_rx.Init.MemInc = DMA_MINC_ENABLE;
+    hdma_usart1_rx.Init.PeriphDataAlignment = DMA_PDATAALIGN_BYTE;
+    hdma_usart1_rx.Init.MemDataAlignment = DMA_MDATAALIGN_BYTE;
+    hdma_usart1_rx.Init.Mode = DMA_NORMAL;
+    hdma_usart1_rx.Init.Priority = DMA_PRIORITY_LOW;
+    hdma_usart1_rx.Init.FIFOMode = DMA_FIFOMODE_DISABLE;
+    if (HAL_DMA_Init(&hdma_usart1_rx) != HAL_OK)
+    {
+      Error_Handler();
+    }
+
+    __HAL_LINKDMA(uartHandle,hdmarx,hdma_usart1_rx);
+
+    /* USART1 interrupt Init */
+    HAL_NVIC_SetPriority(USART1_IRQn, 5, 0);
+    HAL_NVIC_EnableIRQ(USART1_IRQn);
   /* USER CODE BEGIN USART1_MspInit 1 */
 
   /* USER CODE END USART1_MspInit 1 */
@@ -103,6 +142,11 @@ void HAL_UART_MspDeInit(UART_HandleTypeDef* uartHandle)
     */
     HAL_GPIO_DeInit(GPIOA, GPIO_PIN_9|GPIO_PIN_10);
 
+    /* USART1 DMA DeInit */
+    HAL_DMA_DeInit(uartHandle->hdmarx);
+
+    /* USART1 interrupt Deinit */
+    HAL_NVIC_DisableIRQ(USART1_IRQn);
   /* USER CODE BEGIN USART1_MspDeInit 1 */
 
   /* USER CODE END USART1_MspDeInit 1 */
@@ -110,17 +154,29 @@ void HAL_UART_MspDeInit(UART_HandleTypeDef* uartHandle)
 }
 
 /* USER CODE BEGIN 1 */
-int fputc(int ch, FILE *f)
+/* 空闲 DMA 接收完成：有效字节按 ≤31B 分块拷贝进消息入队（满则丢），随即重启接收。
+   传值拷贝而非指针：rx1_buf 在下一轮接收即被覆盖，ISR 外不可引用 */
+void HAL_UARTEx_RxEventCallback(UART_HandleTypeDef *huart, uint16_t size)
 {
-    HAL_UART_Transmit(&huart1, (uint8_t *)&ch, 1, 0xFFFF);
-    return ch;
-}
+  if (huart == &huart1)
+  {
+    UartMsg_t msg;
+    uint16_t off = 0;
 
-/* GCC(newlib) printf 底层输出：_write 调用 __io_putchar，Keil 下无副作用 */
-int __io_putchar(int ch)
-{
-    HAL_UART_Transmit(&huart1, (uint8_t *)&ch, 1, 0xFFFF);
-    return ch;
+    while (off < size)
+    {
+      uint16_t n = (uint16_t)(size - off);
+      if (n > UART_MSG_DATA_MAX)
+        n = UART_MSG_DATA_MAX;
+      msg.len = (uint8_t)n;
+      memcpy(msg.data, &rx1_buf[off], n);
+      osMessageQueuePut(q_Usart1RxMsgHandle, &msg, 0, 0); // 满则丢
+      off += n;
+    }
+    /* 重启下一轮不定长接收 */
+    HAL_UARTEx_ReceiveToIdle_DMA(&huart1, rx1_buf, sizeof(rx1_buf));
+    __HAL_DMA_DISABLE_IT(&hdma_usart1_rx, DMA_IT_HT);
+  }
 }
 /* USER CODE END 1 */
 

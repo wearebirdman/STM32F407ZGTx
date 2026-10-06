@@ -99,7 +99,9 @@ void Touch_SetCalibration(const TouchCal_t *cal);                  // 手动设�
 void Touch_GetCalibration(TouchCal_t *cal);                        // 获取当前校准参数
 TouchErr_t Touch_CalcCalibration(const uint16_t pos[4][2],
                                  uint16_t screen_w, uint16_t screen_h,
-                                 uint16_t margin, TouchCal_t *cal);  // 由 4 点原始坐标计算校准参数
+                                 uint16_t margin, TouchCal_t *cal);  // 由 4 点原始坐标计算校准参数（全屏四角内缩）
+TouchErr_t Touch_CalcCalibrationEx(const uint16_t pos[4][2],
+                                   const uint16_t tgt[4][2], TouchCal_t *cal); // 同上，但显式指定 4 个目标点屏幕坐标
 TouchErr_t Touch_Adjust(uint16_t screen_w, uint16_t screen_h,
                         uint16_t margin, TouchGetPointFn get_point);  // 交互式 4 点校准
 

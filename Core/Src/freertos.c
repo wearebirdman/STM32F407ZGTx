@@ -29,7 +29,7 @@
 #include "key.h"
 #include "touch.h"
 #include "ui_msg.h"
-
+#include "uart_task.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -86,6 +86,20 @@ const osThreadAttr_t t_touch_proc_attributes = {
   .stack_size = 256 * 4,
   .priority = (osPriority_t) osPriorityAboveNormal,
 };
+/* Definitions for t_uart_send */
+osThreadId_t t_uart_sendHandle;
+const osThreadAttr_t t_uart_send_attributes = {
+  .name = "t_uart_send",
+  .stack_size = 256 * 4,
+  .priority = (osPriority_t) osPriorityBelowNormal,
+};
+/* Definitions for t_uart_recv */
+osThreadId_t t_uart_recvHandle;
+const osThreadAttr_t t_uart_recv_attributes = {
+  .name = "t_uart_recv",
+  .stack_size = 256 * 4,
+  .priority = (osPriority_t) osPriorityBelowNormal,
+};
 /* Definitions for q_LedReq */
 osMessageQueueId_t q_LedReqHandle;
 const osMessageQueueAttr_t q_LedReq_attributes = {
@@ -101,6 +115,21 @@ osMessageQueueId_t q_TouchMsgHandle;
 const osMessageQueueAttr_t q_TouchMsg_attributes = {
   .name = "q_TouchMsg"
 };
+/* Definitions for q_UiMsg */
+osMessageQueueId_t q_UiMsgHandle;
+const osMessageQueueAttr_t q_UiMsg_attributes = {
+  .name = "q_UiMsg"
+};
+/* Definitions for q_Usart1RxMsg */
+osMessageQueueId_t q_Usart1RxMsgHandle;
+const osMessageQueueAttr_t q_Usart1RxMsg_attributes = {
+  .name = "q_Usart1RxMsg"
+};
+/* Definitions for q_Usart1TxMsg */
+osMessageQueueId_t q_Usart1TxMsgHandle;
+const osMessageQueueAttr_t q_Usart1TxMsg_attributes = {
+  .name = "q_Usart1TxMsg"
+};
 
 /* Private function prototypes -----------------------------------------------*/
 /* USER CODE BEGIN FunctionPrototypes */
@@ -112,6 +141,8 @@ void lcd_disp(void *argument);
 void led_disp(void *argument);
 void key_proc(void *argument);
 void touch_proc(void *argument);
+void uart_send(void *argument);
+void uart_recv(void *argument);
 
 void MX_FREERTOS_Init(void); /* (MISRA C 2004 rule 8.1) */
 
@@ -147,10 +178,17 @@ void MX_FREERTOS_Init(void) {
   /* creation of q_TouchMsg */
   q_TouchMsgHandle = osMessageQueueNew (16, sizeof(TouchMsg_t), &q_TouchMsg_attributes);
 
-  /* USER CODE BEGIN RTOS_QUEUES */
   /* creation of q_UiMsg */
-  q_UiMsgHandle = osMessageQueueNew(8, sizeof(UiMsg_t), NULL);
-  /* add queues, ... */
+  q_UiMsgHandle = osMessageQueueNew (8, sizeof(UiMsg_t), &q_UiMsg_attributes);
+
+  /* creation of q_Usart1RxMsg */
+  q_Usart1RxMsgHandle = osMessageQueueNew (8, sizeof(UartMsg_t), &q_Usart1RxMsg_attributes);
+
+  /* creation of q_Usart1TxMsg */
+  q_Usart1TxMsgHandle = osMessageQueueNew (8, sizeof(UartMsg_t), &q_Usart1TxMsg_attributes);
+
+  /* USER CODE BEGIN RTOS_QUEUES */
+
   /* USER CODE END RTOS_QUEUES */
 
   /* Create the thread(s) */
@@ -168,6 +206,12 @@ void MX_FREERTOS_Init(void) {
 
   /* creation of t_touch_proc */
   t_touch_procHandle = osThreadNew(touch_proc, NULL, &t_touch_proc_attributes);
+
+  /* creation of t_uart_send */
+  t_uart_sendHandle = osThreadNew(uart_send, NULL, &t_uart_send_attributes);
+
+  /* creation of t_uart_recv */
+  t_uart_recvHandle = osThreadNew(uart_recv, NULL, &t_uart_recv_attributes);
 
   /* USER CODE BEGIN RTOS_THREADS */
   /* add threads, ... */
@@ -267,6 +311,42 @@ __weak void touch_proc(void *argument)
     osDelay(1);
   }
   /* USER CODE END touch_proc */
+}
+
+/* USER CODE BEGIN Header_uart_send */
+/**
+* @brief Function implementing the t_uart_send thread.
+* @param argument: Not used
+* @retval None
+*/
+/* USER CODE END Header_uart_send */
+__weak void uart_send(void *argument)
+{
+  /* USER CODE BEGIN uart_send */
+  /* Infinite loop */
+  for(;;)
+  {
+    osDelay(1);
+  }
+  /* USER CODE END uart_send */
+}
+
+/* USER CODE BEGIN Header_uart_recv */
+/**
+* @brief Function implementing the t_uart_recv thread.
+* @param argument: Not used
+* @retval None
+*/
+/* USER CODE END Header_uart_recv */
+__weak void uart_recv(void *argument)
+{
+  /* USER CODE BEGIN uart_recv */
+  /* Infinite loop */
+  for(;;)
+  {
+    osDelay(1);
+  }
+  /* USER CODE END uart_recv */
 }
 
 /* Private application code --------------------------------------------------*/

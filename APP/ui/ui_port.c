@@ -1,6 +1,8 @@
 #include "ui_port.h"
 #include "ui.h"
 #include "ui_chrome.h"
+#include "ui_calib.h"
+#include "ui_draw.h"
 #include "lcd.h"
 #include "touch.h"
 #include "lvgl.h"
@@ -35,6 +37,8 @@ static void Ui_TouchReadCb(lv_indev_t *indev, lv_indev_data_t *data)
     (void)indev;
     while (osMessageQueueGet(q_TouchMsgHandle, &msg, NULL, 0) == osOK)
     {
+        Ui_CalibFeed(&msg); // 校准页激活时转发原始 AD 事件（其余页面空操作）
+        Ui_DrawFeed(&msg);  // 画板页激活时转发坐标事件（其余页面空操作）
         if (msg.event == TOUCH_EVENT_PRESS_UP)
             s_down = 0;
         else

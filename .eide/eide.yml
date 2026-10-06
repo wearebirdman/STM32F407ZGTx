@@ -49,6 +49,7 @@ targets:
         - APP/lcd
         - APP/led
         - APP/touch
+        - APP/uart
         - Middlewares/Third_Party/FreeRTOS/Source/include
         - Middlewares/Third_Party/FreeRTOS/Source/portable/GCC/ARM_CM4F
         - Middlewares/Third_Party/FreeRTOS/Source/CMSIS_RTOS_V2

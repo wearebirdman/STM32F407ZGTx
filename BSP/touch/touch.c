@@ -243,16 +243,17 @@ void Touch_GetCalibration(TouchCal_t *cal)
 }
 
 /*
- * 由 4 点校准原始坐标计算校准参数（纯计算，不依赖屏幕与存储）
+ * 由 4 点原始坐标计算校准参数（纯计算，不依赖屏幕与存储）
  * pos 顺序固定：pos[0] 左上、pos[1] 右上、pos[2] 左下、pos[3] 右下
- * 采样质量不合格（对角线长度比超差）返回 TOUCH_ERR_CAL
+ * tgt 为对应的 4 个目标点屏幕坐标（顺序同 pos，允许非全屏对称布局）
+ * 采样质量不合格（边长/对角线比例超差）返回 TOUCH_ERR_CAL
  */
-TouchErr_t Touch_CalcCalibration(const uint16_t pos[4][2], uint16_t screen_w, uint16_t screen_h, uint16_t margin, TouchCal_t *cal)
+TouchErr_t Touch_CalcCalibrationEx(const uint16_t pos[4][2], const uint16_t tgt[4][2], TouchCal_t *cal)
 {
     uint32_t tem1, tem2;
     double d1, d2, fac;
 
-    if (pos == NULL || cal == NULL || margin * 2 >= screen_w || margin * 2 >= screen_h)
+    if (pos == NULL || tgt == NULL || cal == NULL)
         return TOUCH_ERR_PARAM;
 
     /* 校验 1: 上边长 / 下边长 */
@@ -288,17 +289,36 @@ TouchErr_t Touch_CalcCalibration(const uint16_t pos[4][2], uint16_t screen_w, ui
     if (fac < 0.95 || fac > 1.05 || d1 == 0)
         return TOUCH_ERR_CAL;
 
-    /* 计算线性变换参数 */
+    /* 计算线性变换参数：系数 = 目标点跨度 / 原始 AD 跨度，偏移 = 目标中点 - 系数 × AD 中点 */
     if (pos[1][0] == pos[0][0] || pos[2][1] == pos[0][1])
         return TOUCH_ERR_CAL;
 
-    cal->xfac = (float)(screen_w - 2 * margin) / (int16_t)(pos[1][0] - pos[0][0]);
-    cal->xoff = (int16_t)((screen_w - cal->xfac * (pos[1][0] + pos[0][0])) / 2);
-    cal->yfac = (float)(screen_h - 2 * margin) / (int16_t)(pos[2][1] - pos[0][1]);
-    cal->yoff = (int16_t)((screen_h - cal->yfac * (pos[2][1] + pos[0][1])) / 2);
+    cal->xfac = (float)(tgt[1][0] - tgt[0][0]) / (int16_t)(pos[1][0] - pos[0][0]);
+    cal->xoff = (int16_t)(((int32_t)tgt[0][0] + tgt[1][0]) / 2 - cal->xfac * (int32_t)(pos[0][0] + pos[1][0]) / 2);
+    cal->yfac = (float)(tgt[2][1] - tgt[0][1]) / (int16_t)(pos[2][1] - pos[0][1]);
+    cal->yoff = (int16_t)(((int32_t)tgt[0][1] + tgt[2][1]) / 2 - cal->yfac * (int32_t)(pos[0][1] + pos[2][1]) / 2);
     cal->valid = 1;
     /* swap 保持调用者传入值（此处不修改） */
     return TOUCH_OK;
+}
+
+/* 全屏四角内缩 margin 布局的便捷包装（供 Touch_Adjust 使用） */
+TouchErr_t Touch_CalcCalibration(const uint16_t pos[4][2], uint16_t screen_w, uint16_t screen_h, uint16_t margin, TouchCal_t *cal)
+{
+    uint16_t tgt[4][2];
+
+    if (margin * 2 >= screen_w || margin * 2 >= screen_h)
+        return TOUCH_ERR_PARAM;
+
+    tgt[0][0] = margin;
+    tgt[0][1] = margin;         // 左上
+    tgt[1][0] = screen_w - margin;
+    tgt[1][1] = margin;         // 右上
+    tgt[2][0] = margin;
+    tgt[2][1] = screen_h - margin; // 左下
+    tgt[3][0] = screen_w - margin;
+    tgt[3][1] = screen_h - margin; // 右下
+    return Touch_CalcCalibrationEx(pos, tgt, cal);
 }
 
 /*

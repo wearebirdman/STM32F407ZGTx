@@ -1,13 +1,15 @@
 #include "ui_chrome.h"
 #include "ui.h"
+#include "ui_calib.h"
+#include "ui_draw.h"
+#include "ui_osc.h"
+#include "ui_serial.h"
 #include "lcd.h"
 #include "rtc.h"
 
 #include <stdio.h>
 
-/* 外壳尺寸与颜色定义 */
-#define CHROME_STATUS_H        28      // 状态栏高度
-#define CHROME_NAV_H           40      // 导航栏高度
+/* 外壳颜色与运行参数定义（尺寸宏见 ui_chrome.h） */
 #define CHROME_CLK_MS          500     // 时钟轮询周期
 #define CHROME_ANIM_MS         250     // 切屏滑动动画时长
 #define CHROME_COLOR_STATUS    0x37474F // 状态栏底色
@@ -19,16 +21,18 @@ static lv_obj_t *s_date_label;              // 状态栏日期标签
 static lv_timer_t *s_clock_timer;           // 时钟定时器（全局仅建一次）
 static uint8_t s_last_sec = 0xFF;           // 上次显示的秒，变化才刷新
 static UiPageId_t s_current_page = UI_PAGE_HOME; // 活动页 id
+static lv_obj_t *s_back_lab;                // 导航栏 BACK 按钮文字（页面定制）
+static lv_obj_t *s_next_lab;                // 导航栏 NEXT 按钮文字（页面定制）
 
-/* 页面表：工厂 + 该页 BACK/NEXT 语义动作 */
+/* 页面表：工厂 + 该页 BACK/NEXT 语义动作 + 按钮文字（NULL=默认） */
 static const UiPageCbs_t s_page_table[UI_PAGE_COUNT] = {
-    { Ui_CreateHome, Ui_HomeBack, Ui_HomeNext }, // UI_PAGE_HOME：翻页菜单
-    { Ui_StubCreate, NULL, NULL },               // UI_PAGE_CALIB
-    { Ui_StubCreate, NULL, NULL },               // UI_PAGE_DRAW
-    { Ui_StubCreate, NULL, NULL },               // UI_PAGE_LED
-    { Ui_StubCreate, NULL, NULL },               // UI_PAGE_KEY
-    { Ui_StubCreate, NULL, NULL },               // UI_PAGE_SET
-    { Ui_StubCreate, NULL, NULL },               // UI_PAGE_ABOUT
+    { Ui_CreateHome,  Ui_HomeBack,  Ui_HomeNext,  NULL,      NULL },     // UI_PAGE_HOME：翻页菜单
+    { Ui_CalibCreate, Ui_CalibBack, Ui_CalibNext, NULL,      NULL },     // UI_PAGE_CALIB：四点校准
+    { Ui_DrawCreate,  Ui_DrawBack,  Ui_DrawNext,  NULL,      NULL },     // UI_PAGE_DRAW：画板（BACK=撤销 NEXT=换色）
+    { Ui_OscCreate,   Ui_OscBack,   Ui_OscNext,   "Rate:50", "Pause" }, // UI_PAGE_OSC：示波器（BACK=采样率 NEXT=暂停/播放）
+    { Ui_SerialCreate, NULL, NULL,   NULL,        NULL },               // UI_PAGE_SERIAL：串口助手（BACK/NEXT 无动作，历史靠拖动浏览）
+    { Ui_StubCreate,  NULL, NULL,    NULL,        NULL },               // UI_PAGE_SET
+    { Ui_StubCreate,  NULL, NULL,    NULL,        NULL },               // UI_PAGE_ABOUT
 };
 
 /* 星期缩写表：下标 = RTC WeekDay（1=周一…7=周日，取模对齐） */
@@ -72,8 +76,8 @@ static void Chrome_OnNextClicked(lv_event_t *e)
     Ui_Next();
 }
 
-/* 建导航栏文字按钮 */
-static lv_obj_t *Chrome_NavButton(lv_obj_t *parent, const char *text, lv_event_cb_t cb)
+/* 建导航栏文字按钮，输出内部文字标签指针供页面定制 */
+static lv_obj_t *Chrome_NavButton(lv_obj_t *parent, const char *text, lv_event_cb_t cb, lv_obj_t **lab_out)
 {
     lv_obj_t *btn = lv_button_create(parent);
     lv_obj_t *lab;
@@ -84,6 +88,7 @@ static lv_obj_t *Chrome_NavButton(lv_obj_t *parent, const char *text, lv_event_c
     lv_label_set_text(lab, text);
     lv_obj_set_style_text_font(lab, &lv_font_montserrat_14, 0);
     lv_obj_center(lab);
+    *lab_out = lab;
     return btn;
 }
 
@@ -97,6 +102,8 @@ void Ui_ChromeBuild(lv_obj_t *scr, lv_obj_t **content_out)
     lv_obj_remove_style_all(scr);
     lv_obj_set_size(scr, LCD_WIDTH, LCD_HEIGHT);
     lv_obj_set_flex_flow(scr, LV_FLEX_FLOW_COLUMN);
+    /* 三栏高度正好等于屏高，不需要滚动；关掉可省去拖动时的回弹位移 */
+    lv_obj_set_scrollable(scr, false);
     lv_obj_set_style_bg_color(scr, lv_color_hex(CHROME_COLOR_BG), 0);
     lv_obj_set_style_bg_opa(scr, LV_OPA_COVER, 0);
 
@@ -119,11 +126,12 @@ void Ui_ChromeBuild(lv_obj_t *scr, lv_obj_t **content_out)
     lv_label_set_text(s_date_label, "--/-- ---");
     lv_obj_align(s_date_label, LV_ALIGN_RIGHT_MID, -6, 0);
 
-    /* 内容区：flex 生长填满中部 */
+    /* 内容区：flex 生长填满中部（不可滚动，避免拖动触发回弹改变子对象原点） */
     content = lv_obj_create(scr);
     lv_obj_remove_style_all(content);
     lv_obj_set_width(content, LV_PCT(100));
     lv_obj_set_flex_grow(content, 1);
+    lv_obj_set_scrollable(content, false);
     lv_obj_set_style_pad_all(content, 4, 0);
 
     /* 导航栏：Home/Back/Next */
@@ -135,9 +143,15 @@ void Ui_ChromeBuild(lv_obj_t *scr, lv_obj_t **content_out)
     lv_obj_set_flex_flow(nav, LV_FLEX_FLOW_ROW);
     lv_obj_set_flex_align(nav, LV_FLEX_ALIGN_SPACE_EVENLY, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
 
-    Chrome_NavButton(nav, "Home", Chrome_OnHomeClicked);
-    Chrome_NavButton(nav, "Back", Chrome_OnBackClicked);
-    Chrome_NavButton(nav, "Next", Chrome_OnNextClicked);
+    Chrome_NavButton(nav, "Home", Chrome_OnHomeClicked, NULL);
+    Chrome_NavButton(nav, "Back", Chrome_OnBackClicked, &s_back_lab);
+    Chrome_NavButton(nav, "Next", Chrome_OnNextClicked, &s_next_lab);
+
+    /* 按当前页表项覆盖 BACK/NEXT 按钮文字（NULL=保持默认） */
+    if (s_page_table[s_current_page].back_label != NULL)
+        lv_label_set_text(s_back_lab, s_page_table[s_current_page].back_label);
+    if (s_page_table[s_current_page].next_label != NULL)
+        lv_label_set_text(s_next_lab, s_page_table[s_current_page].next_label);
 
     *content_out = content;
 
@@ -148,7 +162,17 @@ void Ui_ChromeBuild(lv_obj_t *scr, lv_obj_t **content_out)
     Chrome_ClockTick(NULL);
 }
 
-/* 建页并左滑加载（旧页动画结束后自动销毁），成为新的活动页 */
+/* 运行时改导航按钮文字（页面切档等状态实时上钮；NULL=保持） */
+void Ui_ChromeSetNavLabels(const char *back, const char *next)
+{
+    if (back != NULL && s_back_lab != NULL)
+        lv_label_set_text(s_back_lab, back);
+    if (next != NULL && s_next_lab != NULL)
+        lv_label_set_text(s_next_lab, next);
+}
+
+/* 建页并左滑加载（旧页动画结束后自动销毁），成为新的活动页。
+   注意：s_current_page 必须先于 create 赋值——工厂内建壳按页 id 取导航按钮定制文字 */
 void Ui_Push(UiPageId_t id)
 {
     lv_obj_t *scr;
@@ -156,10 +180,10 @@ void Ui_Push(UiPageId_t id)
     if (id >= UI_PAGE_COUNT)
         return;
 
+    s_current_page = id;
     scr = s_page_table[id].create(id);
     if (scr == NULL)
         return;
-    s_current_page = id;
     lv_screen_load_anim(scr, LV_SCR_LOAD_ANIM_MOVE_LEFT, CHROME_ANIM_MS, 0, true);
 }
 
@@ -177,12 +201,13 @@ void Ui_Next(void)
         s_page_table[s_current_page].on_next();
 }
 
-/* 清场回主菜单（无动画） */
+/* 清场回主菜单（无动画）；页 id 先于建页赋值，同 Ui_Push */
 void Ui_Home(void)
 {
-    lv_obj_t *scr = s_page_table[UI_PAGE_HOME].create(UI_PAGE_HOME);
+    lv_obj_t *scr;
 
     s_current_page = UI_PAGE_HOME;
+    scr = s_page_table[UI_PAGE_HOME].create(UI_PAGE_HOME);
     if (scr == NULL)
         return;
     lv_screen_load_anim(scr, LV_SCR_LOAD_ANIM_NONE, 0, 0, true);
@@ -201,6 +226,10 @@ void Ui_ApplyMsg(const UiMsg_t *msg)
 
         case UI_MSG_REQ_CALIB:
             Ui_Push(UI_PAGE_CALIB);
+            break;
+
+        case UI_MSG_SERIAL_LINE:
+            Ui_SerialPush(msg->data.text);
             break;
 
         default:
