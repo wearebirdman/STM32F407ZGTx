@@ -66,7 +66,6 @@ void LCD_DisplayOn(void);                                                       
 void LCD_DisplayOff(void);                                                              // 关显示
 void LCD_Clear(uint16_t color);                                                         // 清屏
 void LCD_Fill(uint16_t x, uint16_t y, uint16_t width, uint16_t height, uint16_t color); // 填充单色
-void LCD_FillBitmap(uint16_t x, uint16_t y, uint16_t width, uint16_t height, const uint16_t *data);                                              // 位图刷写（LVGL flush）
 uint16_t LCD_ReadPoint(uint16_t x, uint16_t y);                                         // 读取某点的颜色值
 void LCD_DrawPoint(uint16_t x, uint16_t y, uint16_t color);                             // 画点
 void LCD_DrawBigPoint(uint16_t x, uint16_t y, uint16_t color);                          // 画大点

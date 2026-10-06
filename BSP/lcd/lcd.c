@@ -280,7 +280,9 @@ void LCD_Clear(uint16_t color)
 /* 填充指定区域（起始坐标 + 宽高 + RGB565 颜色） */
 void LCD_Fill(uint16_t x, uint16_t y, uint16_t width, uint16_t height, uint16_t color)
 {
-    if (LCD_CoordError(x, y) || LCD_CoordError(x + width - 1, y + height - 1))
+    if (LCD_CoordError(x, y))
+        return;
+    if (LCD_CoordError(x + width - 1, y + height - 1))
         return;
 
     /* 计算区域大小 */
@@ -293,24 +295,6 @@ void LCD_Fill(uint16_t x, uint16_t y, uint16_t width, uint16_t height, uint16_t 
     for (uint32_t i = 0; i < total; i++)
     {
         *ram_addr = color;
-    }
-}
-
-/* 位图刷写：把 width*height 个 RGB565 像素写入指定窗口（LVGL flush 专用） */
-void LCD_FillBitmap(uint16_t x, uint16_t y, uint16_t width, uint16_t height, const uint16_t *data)
-{
-    if (LCD_CoordError(x, y) || LCD_CoordError(x + width - 1, y + height - 1))
-        return;
-
-    uint32_t total = (uint32_t)width * height;
-    __IO uint16_t *ram_addr = &LCD->LCD_RAM; // 缓存 LCD_RAM 地址，减少指针解引用开销
-
-    LCD_SetWindow(x, y, width, height);
-
-    LCD->LCD_REG = s_lcdDev.wramcmd;
-    for (uint32_t i = 0; i < total; i++)
-    {
-        *ram_addr = data[i];
     }
 }
 

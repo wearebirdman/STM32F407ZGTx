@@ -438,6 +438,7 @@ TouchMsg_t Touch_Scan(void)
     msg.y = s_touchCtx.last_y;
     msg.raw_x = s_touchCtx.last_raw_x;
     msg.raw_y = s_touchCtx.last_raw_y;
+    msg.pressed = (s_touchCtx.state == TOUCH_STATE_PRESSED) ? 1 : 0;
     msg.event = TOUCH_EVENT_NONE;
 
     if (!s_initialized)
@@ -485,6 +486,7 @@ TouchMsg_t Touch_Scan(void)
         s_touchCtx.last_y = msg.y;
         s_touchCtx.last_raw_x = raw_x;
         s_touchCtx.last_raw_y = raw_y;
+        msg.pressed = 1;
     }
     else
     {
@@ -493,6 +495,7 @@ TouchMsg_t Touch_Scan(void)
         {
             msg.event = TOUCH_EVENT_PRESS_UP;
             s_touchCtx.state = TOUCH_STATE_IDLE;
+            msg.pressed = 0;
         }
     }
 
@@ -565,3 +568,97 @@ void Touch_Init(void)
     s_touchCtx.last_raw_y = 0;
     s_initialized = 1;
 }
+
+/* 使用示例 */
+#if 1 // 设置为 1 启用示例代码
+
+/* 校准取点回调示例（需 LCD 支持，仅作演示），实际使用时可在此函数中绘制十字、提示文字等 */
+static uint8_t Touch_Example_GetPoint(uint16_t x, uint16_t y,
+                                      uint16_t *raw_x, uint16_t *raw_y)
+{
+    uint16_t timeout = 1000; // 最长等待 10 秒（1000 x 10ms）
+
+    printf("Please touch the point (%u, %u)...\r\n", x, y);
+
+    /* 等待用户按下 */
+    while (!Touch_IsPressed())
+    {
+        HAL_Delay(10);
+        if (--timeout == 0)
+            return 0;
+    }
+
+    /* 读取按下时的原始坐标 */
+    if (Touch_ReadRawXY(raw_x, raw_y) != TOUCH_OK)
+        return 0;
+
+    /* 等待用户释放 */
+    while (Touch_IsPressed())
+        HAL_Delay(10);
+
+    return 1;
+}
+
+/* Touch 使用示例：初始化 -> 读原始坐标 -> 校准检查 -> 循环扫描获取坐标与事件 */
+void Touch_Example(void)
+{
+    TouchMsg_t tdata;
+    TouchErr_t ret;
+
+    /* 1. 初始化 */
+    Touch_Init();
+    printf("Touch Init OK!\r\n");
+
+    /* 2. 读取一次原始坐标 */
+    {
+        uint16_t raw_x, raw_y;
+        ret = Touch_ReadRawXY(&raw_x, &raw_y);
+        if (ret == TOUCH_OK)
+            printf("Raw AD: X=%u, Y=%u\r\n", raw_x, raw_y);
+        else
+            printf("Raw read skipped (no touch?)\r\n");
+    }
+
+    /* 3. 校准检查（未校准则执行交互式校准并保存） */
+#if TOUCH_USE_EEPROM_CAL
+    {
+        TouchCal_t cal;
+        Touch_GetCalibration(&cal);
+        if (!cal.valid)
+        {
+            printf("Not calibrated, start 4-point adjust...\r\n");
+            ret = Touch_Adjust(240, 320, 20, Touch_Example_GetPoint);
+            if (ret == TOUCH_OK)
+            {
+                Touch_SaveCalibration();
+                printf("Adjust OK, saved!\r\n");
+            }
+            else
+            {
+                printf("Adjust Failed! Error: %d\r\n", ret);
+                return;
+            }
+        }
+        else
+        {
+            /* 浮点 printf 未启用，用定点拆分打印系数（放大 10000 倍） */
+            printf("Calibration loaded. xfac=%d.%04d yfac=%d.%04d xoff=%d yoff=%d swap=%u\r\n",
+                   (int)cal.xfac, (int)(cal.xfac * 10000) % 10000,
+                   (int)cal.yfac, (int)(cal.yfac * 10000) % 10000,
+                   cal.xoff, cal.yoff, cal.swap);
+        }
+    }
+#endif
+
+    /* 4. 循环中每隔固定时间扫描一次，直接返回触摸数据结构体 */
+    while (1)
+    {
+        tdata = Touch_Scan();
+        if (tdata.event != TOUCH_EVENT_NONE)
+            printf("pressed=%u event=0x%02X x=%u y=%u\r\n",
+                   tdata.pressed, tdata.event, tdata.x, tdata.y);
+        HAL_Delay(10);
+    }
+}
+
+#endif /* 示例代码 */

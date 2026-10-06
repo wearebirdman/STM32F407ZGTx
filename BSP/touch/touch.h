@@ -63,8 +63,8 @@ typedef enum {
 typedef enum {
     TOUCH_EVENT_NONE       = 0, // 无事件
     TOUCH_EVENT_PRESS_DOWN = 1, // 按下瞬间
-    TOUCH_EVENT_PRESS_UP   = 2, // 释放瞬间
-    TOUCH_EVENT_PRESS_HOLD = 3, // 持续按住
+    TOUCH_EVENT_PRESS_HOLD = 2, // 持续按住
+    TOUCH_EVENT_PRESS_UP   = 4, // 释放瞬间
 } TouchEvt_t;
 
 /* 校准参数结构体 */
@@ -83,6 +83,7 @@ typedef struct {
     uint16_t y;         // 屏幕坐标 Y
     uint16_t raw_x;     // 原始 AD 值 X
     uint16_t raw_y;     // 原始 AD 值 Y
+    uint8_t pressed;    // 当前是否按下：0/1
     uint8_t event;      // 本次扫描产生的事件（TOUCH_EVENT_xxx）
 } TouchMsg_t;
 
@@ -111,5 +112,7 @@ TouchErr_t Touch_LoadCalibration(void);                             // 从 EEPRO
 uint8_t Touch_IsPressed(void);                                     // 查询当前是否按下
 TouchMsg_t Touch_Scan(void);                                       // 扫描一次，直接返回触摸数据结构体
 void Touch_Init(void);                                             // 初始化（配置 IO，加载校准）
+
+void Touch_Example(void);                                          // 使用示例
 
 #endif /* __TOUCH_H */

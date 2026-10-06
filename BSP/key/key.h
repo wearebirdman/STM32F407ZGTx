@@ -39,7 +39,7 @@ typedef enum {
     KEY_EVENT_SHORT_PRESS = 1,
     KEY_EVENT_LONG_PRESS = 2,
     KEY_EVENT_DOUBLE_CLICK = 3,
-} KeyEvt_t;
+} KeyEvent_t;
 
 /* 按键事件结构体 */
 typedef struct {

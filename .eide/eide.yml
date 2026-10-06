@@ -49,13 +49,13 @@ targets:
         - APP/lcd
         - APP/led
         - APP/touch
+        - APP/uart
         - Middlewares/Third_Party/FreeRTOS/Source/include
         - Middlewares/Third_Party/FreeRTOS/Source/portable/GCC/ARM_CM4F
         - Middlewares/Third_Party/FreeRTOS/Source/CMSIS_RTOS_V2
         - BSP/touch
         - Middlewares/Third_Party/lvgl/include
         - Middlewares/Third_Party/lvgl
-        - APP/ui
       libList: []
     excludeList: []
     settings:

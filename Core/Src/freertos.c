@@ -28,7 +28,6 @@
 #include "led.h"
 #include "key.h"
 #include "touch.h"
-#include "ui_msg.h"
 
 /* USER CODE END Includes */
 
@@ -148,9 +147,7 @@ void MX_FREERTOS_Init(void) {
   q_TouchMsgHandle = osMessageQueueNew (16, sizeof(TouchMsg_t), &q_TouchMsg_attributes);
 
   /* USER CODE BEGIN RTOS_QUEUES */
-  /* creation of q_UiMsg */
-  q_UiMsgHandle = osMessageQueueNew(8, sizeof(UiMsg_t), NULL);
-  /* add queues, ... */
+
   /* USER CODE END RTOS_QUEUES */
 
   /* Create the thread(s) */
