@@ -38,9 +38,9 @@ typedef struct {
 } LedReq_t;
 
 /* LED函数声明 */
-void Led_On(LedID_t led_id);
-void Led_Off(LedID_t led_id);
-void Led_Toggle(LedID_t led_id);
-void Led_Refresh(LedReq_t led_req);
+void Led_On(LedID_t led_id);         /* 点亮指定LED */
+void Led_Off(LedID_t led_id);        /* 熄灭指定LED */
+void Led_Toggle(LedID_t led_id);     /* 反转指定LED */
+void Led_Refresh(LedReq_t led_req);  /* 按请求刷新LED */
 
 #endif /* __LED_H */

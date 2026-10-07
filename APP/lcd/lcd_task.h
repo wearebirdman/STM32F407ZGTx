@@ -6,6 +6,6 @@
 #include "main.h"
 #include "cmsis_os.h"
 
-void lcd_disp(void *argument);
+void Lcd_Disp(void *argument);    /* LCD 显示任务入口 */
 
-#endif
+#endif /* __LCD_TASK_H */

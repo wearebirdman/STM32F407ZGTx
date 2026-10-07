@@ -4,8 +4,8 @@
 #include "main.h"
 
 /* 按键定义宏 */
-#define KEY_NUM             4     // 始终为最大按键ID+1
-#define KEY_WK_UNUSED       1     // 未使用WakeUp按键为1,按键扫描中从1开始扫描
+#define KEY_NUM             4     /* 始终为最大按键ID+1 */
+#define KEY_WK_UNUSED       1     /* 未使用WakeUp按键为1,按键扫描中从1开始扫描 */
 #define KEY_WK_PORT         GPIOA
 #define KEY_WK_PIN          GPIO_PIN_0
 #define KEY_WK_ACTIVE_LEVEL GPIO_PIN_SET
@@ -20,9 +20,9 @@
 #define KEY_3_ACTIVE_LEVEL  GPIO_PIN_RESET
 
 /* 按键事件时间定义 */
-#define KEY_DEBOUNCE_MS     10     // 消抖时间
-#define KEY_LONG_PRESS_MS   2000   // 长按时间
-#define KEY_DOUBLE_CLICK_MS 200    // 双击间隔时间
+#define KEY_DEBOUNCE_MS     10     /* 消抖时间 */
+#define KEY_LONG_PRESS_MS   2000   /* 长按时间 */
+#define KEY_DOUBLE_CLICK_MS 200    /* 双击间隔时间 */
 
 /* 按键ID定义 */
 typedef enum {
@@ -48,7 +48,7 @@ typedef struct {
 } KeyMsg_t;
 
 /* 函数接口 */
-void Key_Init(void);
-KeyMsg_t Key_Scan(void);
+void Key_Init(void);      /* 初始化按键上下文 */
+KeyMsg_t Key_Scan(void);  /* 扫描按键状态机，返回本次事件 */
 
 #endif /* __KEY_H */

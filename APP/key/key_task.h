@@ -6,6 +6,8 @@
 #include "main.h"
 #include "cmsis_os.h"
 
-void key_proc(void *argument);
+extern osMessageQueueId_t q_KeyMsgHandle;  /* 按键事件队列，freertos.c 创建 */
 
-#endif
+void Key_Proc(void *argument);  /* 按键任务入口 */
+
+#endif /* __KEY_TASK_H */

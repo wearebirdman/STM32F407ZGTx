@@ -21,15 +21,11 @@
 #include "usart.h"
 
 /* USER CODE BEGIN 0 */
-#include <string.h>
-#include "FreeRTOS.h"
-#include "task.h"
-#include "cmsis_os.h"
 #include "uart_task.h"
 
-extern osMessageQueueId_t q_Usart1RxMsgHandle;
+#include <string.h>
 
-static uint8_t rx1_buf[64]; // DMA 落货区：模块私有，有效字节由 ISR 拷贝进消息后复用
+static uint8_t s_Rx1Buf[64]; /* DMA 落货区：模块私有，有效字节由 ISR 拷贝进消息后复用 */
 /* USER CODE END 0 */
 
 UART_HandleTypeDef huart1;
@@ -61,13 +57,13 @@ void MX_USART1_UART_Init(void)
   }
   /* USER CODE BEGIN USART1_Init 2 */
   /* 1.若使用普通中断 */
-  //HAL_UART_Receive_IT(&huart1, rx1_buf, 5);
+  /* HAL_UART_Receive_IT(&huart1, s_Rx1Buf, 5); */
 
   /* 2.若使用DMA,(定长接收)，可以配合dma空闲中断使用，接收长度设置为256 */
-  //HAL_UART_Receive_DMA(&huart1, rx1_buf, 5);
+  /* HAL_UART_Receive_DMA(&huart1, s_Rx1Buf, 5); */
 
-  /* 3.若使用DMA不定长度接收中断 */ 
-  HAL_UARTEx_ReceiveToIdle_DMA(&huart1, rx1_buf, sizeof(rx1_buf));
+  /* 3.若使用DMA不定长度接收中断 */
+  HAL_UARTEx_ReceiveToIdle_DMA(&huart1, s_Rx1Buf, sizeof(s_Rx1Buf));
   __HAL_DMA_DISABLE_IT(&hdma_usart1_rx, DMA_IT_HT);
   /* USER CODE END USART1_Init 2 */
 
@@ -155,28 +151,28 @@ void HAL_UART_MspDeInit(UART_HandleTypeDef* uartHandle)
 
 /* USER CODE BEGIN 1 */
 /* 空闲 DMA 接收完成：有效字节按 ≤31B 分块拷贝进消息入队（满则丢），随即重启接收。
-   传值拷贝而非指针：rx1_buf 在下一轮接收即被覆盖，ISR 外不可引用 */
+ * 传值拷贝而非指针：s_Rx1Buf 在下一轮接收即被覆盖，ISR 外不可引用 */
 void HAL_UARTEx_RxEventCallback(UART_HandleTypeDef *huart, uint16_t size)
 {
-  if (huart == &huart1)
-  {
-    UartMsg_t msg;
-    uint16_t off = 0;
-
-    while (off < size)
+    if (huart == &huart1)
     {
-      uint16_t n = (uint16_t)(size - off);
-      if (n > UART_MSG_DATA_MAX)
-        n = UART_MSG_DATA_MAX;
-      msg.len = (uint8_t)n;
-      memcpy(msg.data, &rx1_buf[off], n);
-      osMessageQueuePut(q_Usart1RxMsgHandle, &msg, 0, 0); // 满则丢
-      off += n;
+        UartMsg_t msg;
+        uint16_t off = 0;
+
+        while (off < size)
+        {
+            uint16_t n = (uint16_t)(size - off);
+            if (n > UART_MSG_DATA_MAX)
+                n = UART_MSG_DATA_MAX;
+            msg.len = (uint8_t)n;
+            memcpy(msg.data, &s_Rx1Buf[off], n);
+            osMessageQueuePut(q_Usart1RxMsgHandle, &msg, 0, 0); /* 满则丢 */
+            off += n;
+        }
+        /* 重启下一轮不定长接收 */
+        HAL_UARTEx_ReceiveToIdle_DMA(&huart1, s_Rx1Buf, sizeof(s_Rx1Buf));
+        __HAL_DMA_DISABLE_IT(&hdma_usart1_rx, DMA_IT_HT);
     }
-    /* 重启下一轮不定长接收 */
-    HAL_UARTEx_ReceiveToIdle_DMA(&huart1, rx1_buf, sizeof(rx1_buf));
-    __HAL_DMA_DISABLE_IT(&hdma_usart1_rx, DMA_IT_HT);
-  }
 }
 /* USER CODE END 1 */
 

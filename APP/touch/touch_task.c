@@ -2,19 +2,21 @@
 #include "touch.h"
 #include "uart_task.h"
 
-#define TEV_MOVE_MIN 2 // 行笔位移阈值（px）：HOLD 事件抖动过滤
+#define TEV_MOVE_MIN         2  /* 行笔位移阈值（px）：HOLD 事件抖动过滤 */
+#define TOUCH_SCAN_PERIOD_MS 10 /* 触摸扫描周期（ms） */
 
-extern osMessageQueueId_t q_TouchMsgHandle;
-
-void touch_proc(void *argument)
+/* 触摸任务：周期扫描触摸，将事件转发到触摸消息队列 */
+void Touch_Proc(void *argument)
 {
     TouchMsg_t touch_msg;
-    uint16_t lx = 0, ly = 0; // 最后上报的屏幕坐标（HOLD 位移判定基准）
+    uint16_t lx = 0, ly = 0; /* 最后上报的屏幕坐标（HOLD 位移判定基准） */
+
+    (void)argument;
 
 #if TOUCH_USE_EEPROM_CAL
-    AT24C02_Init(); // 检测 EEPROM 在位（I2C 外设由 MX_I2C1_Init 初始化）
+    AT24CXX_Init(); /* 检测 EEPROM 在位（I2C 句柄由 at24cxx.h 的 AT24CXX_I2C 宏指定） */
 #endif
-    Touch_Init(); // 内部加载 EEPROM 校准参数（未校准过则输出原始 AD 值）
+    Touch_Init(); /* 内部加载 EEPROM 校准参数（未校准过则输出原始 AD 值） */
     Uart_Printf("Touch Init Done!\r\n");
 
     for (;;)
@@ -26,12 +28,12 @@ void touch_proc(void *argument)
             /* 按下边沿：直接转发，记录位移基准 */
             lx = touch_msg.x;
             ly = touch_msg.y;
-            osMessageQueuePut(q_TouchMsgHandle, &touch_msg, 0, 0); // 满则丢
+            osMessageQueuePut(q_TouchMsgHandle, &touch_msg, 0, 0); /* 满则丢 */
         }
         else if (touch_msg.event == TOUCH_EVENT_PRESS_UP)
         {
             /* 抬起边沿：直接转发（驱动已保留最后按下坐标） */
-            osMessageQueuePut(q_TouchMsgHandle, &touch_msg, 0, 0); // 满则丢
+            osMessageQueuePut(q_TouchMsgHandle, &touch_msg, 0, 0); /* 满则丢 */
         }
         else if (touch_msg.event == TOUCH_EVENT_PRESS_HOLD)
         {
@@ -42,9 +44,9 @@ void touch_proc(void *argument)
             {
                 lx = touch_msg.x;
                 ly = touch_msg.y;
-                osMessageQueuePut(q_TouchMsgHandle, &touch_msg, 0, 0); // 满则丢
+                osMessageQueuePut(q_TouchMsgHandle, &touch_msg, 0, 0); /* 满则丢 */
             }
         }
-        osDelay(10); // 每 10ms 扫描一次触摸
+        osDelay(TOUCH_SCAN_PERIOD_MS);
     }
 }

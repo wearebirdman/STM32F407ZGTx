@@ -58,45 +58,45 @@ const osThreadAttr_t defaultTask_attributes = {
   .stack_size = 128 * 4,
   .priority = (osPriority_t) osPriorityLow,
 };
-/* Definitions for t_lcd_disp */
-osThreadId_t t_lcd_dispHandle;
-const osThreadAttr_t t_lcd_disp_attributes = {
-  .name = "t_lcd_disp",
+/* Definitions for t_Lcd_Disp */
+osThreadId_t t_Lcd_DispHandle;
+const osThreadAttr_t t_Lcd_Disp_attributes = {
+  .name = "t_Lcd_Disp",
   .stack_size = 1536 * 4,
   .priority = (osPriority_t) osPriorityBelowNormal,
 };
-/* Definitions for t_led_disp */
-osThreadId_t t_led_dispHandle;
-const osThreadAttr_t t_led_disp_attributes = {
-  .name = "t_led_disp",
+/* Definitions for t_Led_Disp */
+osThreadId_t t_Led_DispHandle;
+const osThreadAttr_t t_Led_Disp_attributes = {
+  .name = "t_Led_Disp",
   .stack_size = 128 * 4,
   .priority = (osPriority_t) osPriorityBelowNormal,
 };
-/* Definitions for t_key_proc */
-osThreadId_t t_key_procHandle;
-const osThreadAttr_t t_key_proc_attributes = {
-  .name = "t_key_proc",
+/* Definitions for t_Key_Proc */
+osThreadId_t t_Key_ProcHandle;
+const osThreadAttr_t t_Key_Proc_attributes = {
+  .name = "t_Key_Proc",
   .stack_size = 256 * 4,
   .priority = (osPriority_t) osPriorityAboveNormal,
 };
-/* Definitions for t_touch_proc */
-osThreadId_t t_touch_procHandle;
-const osThreadAttr_t t_touch_proc_attributes = {
-  .name = "t_touch_proc",
+/* Definitions for t_Touch_Proc */
+osThreadId_t t_Touch_ProcHandle;
+const osThreadAttr_t t_Touch_Proc_attributes = {
+  .name = "t_Touch_Proc",
   .stack_size = 256 * 4,
   .priority = (osPriority_t) osPriorityAboveNormal,
 };
-/* Definitions for t_uart_send */
-osThreadId_t t_uart_sendHandle;
-const osThreadAttr_t t_uart_send_attributes = {
-  .name = "t_uart_send",
+/* Definitions for t_Uart_Send */
+osThreadId_t t_Uart_SendHandle;
+const osThreadAttr_t t_Uart_Send_attributes = {
+  .name = "t_Uart_Send",
   .stack_size = 256 * 4,
   .priority = (osPriority_t) osPriorityBelowNormal,
 };
-/* Definitions for t_uart_recv */
-osThreadId_t t_uart_recvHandle;
-const osThreadAttr_t t_uart_recv_attributes = {
-  .name = "t_uart_recv",
+/* Definitions for t_Uart_Recv */
+osThreadId_t t_Uart_RecvHandle;
+const osThreadAttr_t t_Uart_Recv_attributes = {
+  .name = "t_Uart_Recv",
   .stack_size = 256 * 4,
   .priority = (osPriority_t) osPriorityBelowNormal,
 };
@@ -137,12 +137,12 @@ const osMessageQueueAttr_t q_Usart1TxMsg_attributes = {
 /* USER CODE END FunctionPrototypes */
 
 void StartDefaultTask(void *argument);
-void lcd_disp(void *argument);
-void led_disp(void *argument);
-void key_proc(void *argument);
-void touch_proc(void *argument);
-void uart_send(void *argument);
-void uart_recv(void *argument);
+void Lcd_Disp(void *argument);
+void Led_Disp(void *argument);
+void Key_Proc(void *argument);
+void Touch_Proc(void *argument);
+void Uart_Send(void *argument);
+void Uart_Recv(void *argument);
 
 void MX_FREERTOS_Init(void); /* (MISRA C 2004 rule 8.1) */
 
@@ -195,23 +195,23 @@ void MX_FREERTOS_Init(void) {
   /* creation of defaultTask */
   defaultTaskHandle = osThreadNew(StartDefaultTask, NULL, &defaultTask_attributes);
 
-  /* creation of t_lcd_disp */
-  t_lcd_dispHandle = osThreadNew(lcd_disp, NULL, &t_lcd_disp_attributes);
+  /* creation of t_Lcd_Disp */
+  t_Lcd_DispHandle = osThreadNew(Lcd_Disp, NULL, &t_Lcd_Disp_attributes);
 
-  /* creation of t_led_disp */
-  t_led_dispHandle = osThreadNew(led_disp, NULL, &t_led_disp_attributes);
+  /* creation of t_Led_Disp */
+  t_Led_DispHandle = osThreadNew(Led_Disp, NULL, &t_Led_Disp_attributes);
 
-  /* creation of t_key_proc */
-  t_key_procHandle = osThreadNew(key_proc, NULL, &t_key_proc_attributes);
+  /* creation of t_Key_Proc */
+  t_Key_ProcHandle = osThreadNew(Key_Proc, NULL, &t_Key_Proc_attributes);
 
-  /* creation of t_touch_proc */
-  t_touch_procHandle = osThreadNew(touch_proc, NULL, &t_touch_proc_attributes);
+  /* creation of t_Touch_Proc */
+  t_Touch_ProcHandle = osThreadNew(Touch_Proc, NULL, &t_Touch_Proc_attributes);
 
-  /* creation of t_uart_send */
-  t_uart_sendHandle = osThreadNew(uart_send, NULL, &t_uart_send_attributes);
+  /* creation of t_Uart_Send */
+  t_Uart_SendHandle = osThreadNew(Uart_Send, NULL, &t_Uart_Send_attributes);
 
-  /* creation of t_uart_recv */
-  t_uart_recvHandle = osThreadNew(uart_recv, NULL, &t_uart_recv_attributes);
+  /* creation of t_Uart_Recv */
+  t_Uart_RecvHandle = osThreadNew(Uart_Recv, NULL, &t_Uart_Recv_attributes);
 
   /* USER CODE BEGIN RTOS_THREADS */
   /* add threads, ... */
@@ -241,112 +241,112 @@ void StartDefaultTask(void *argument)
   /* USER CODE END StartDefaultTask */
 }
 
-/* USER CODE BEGIN Header_lcd_disp */
+/* USER CODE BEGIN Header_Lcd_Disp */
 /**
-* @brief Function implementing the t_lcd_disp thread.
+* @brief Function implementing the t_Lcd_Disp thread.
 * @param argument: Not used
 * @retval None
 */
-/* USER CODE END Header_lcd_disp */
-__weak void lcd_disp(void *argument)
+/* USER CODE END Header_Lcd_Disp */
+__weak void Lcd_Disp(void *argument)
 {
-  /* USER CODE BEGIN lcd_disp */
+  /* USER CODE BEGIN Lcd_Disp */
   /* Infinite loop */
   for(;;)
   {
     osDelay(1);
   }
-  /* USER CODE END lcd_disp */
+  /* USER CODE END Lcd_Disp */
 }
 
-/* USER CODE BEGIN Header_led_disp */
+/* USER CODE BEGIN Header_Led_Disp */
 /**
-* @brief Function implementing the t_led_disp thread.
+* @brief Function implementing the t_Led_Disp thread.
 * @param argument: Not used
 * @retval None
 */
-/* USER CODE END Header_led_disp */
-__weak void led_disp(void *argument)
+/* USER CODE END Header_Led_Disp */
+__weak void Led_Disp(void *argument)
 {
-  /* USER CODE BEGIN led_disp */
+  /* USER CODE BEGIN Led_Disp */
   /* Infinite loop */
   for(;;)
   {
     osDelay(1);
   }
-  /* USER CODE END led_disp */
+  /* USER CODE END Led_Disp */
 }
 
-/* USER CODE BEGIN Header_key_proc */
+/* USER CODE BEGIN Header_Key_Proc */
 /**
-* @brief Function implementing the key_task thread.
+* @brief Function implementing the t_Key_Proc thread.
 * @param argument: Not used
 * @retval None
 */
-/* USER CODE END Header_key_proc */
-__weak void key_proc(void *argument)
+/* USER CODE END Header_Key_Proc */
+__weak void Key_Proc(void *argument)
 {
-  /* USER CODE BEGIN key_proc */
+  /* USER CODE BEGIN Key_Proc */
   /* Infinite loop */
   for(;;)
   {
     osDelay(1);
   }
-  /* USER CODE END key_proc */
+  /* USER CODE END Key_Proc */
 }
 
-/* USER CODE BEGIN Header_touch_proc */
+/* USER CODE BEGIN Header_Touch_Proc */
 /**
-* @brief Function implementing the touch_task thread.
+* @brief Function implementing the t_Touch_Proc thread.
 * @param argument: Not used
 * @retval None
 */
-/* USER CODE END Header_touch_proc */
-__weak void touch_proc(void *argument)
+/* USER CODE END Header_Touch_Proc */
+__weak void Touch_Proc(void *argument)
 {
-  /* USER CODE BEGIN touch_proc */
+  /* USER CODE BEGIN Touch_Proc */
   /* Infinite loop */
   for(;;)
   {
     osDelay(1);
   }
-  /* USER CODE END touch_proc */
+  /* USER CODE END Touch_Proc */
 }
 
-/* USER CODE BEGIN Header_uart_send */
+/* USER CODE BEGIN Header_Uart_Send */
 /**
-* @brief Function implementing the t_uart_send thread.
+* @brief Function implementing the t_Uart_Send thread.
 * @param argument: Not used
 * @retval None
 */
-/* USER CODE END Header_uart_send */
-__weak void uart_send(void *argument)
+/* USER CODE END Header_Uart_Send */
+__weak void Uart_Send(void *argument)
 {
-  /* USER CODE BEGIN uart_send */
+  /* USER CODE BEGIN Uart_Send */
   /* Infinite loop */
   for(;;)
   {
     osDelay(1);
   }
-  /* USER CODE END uart_send */
+  /* USER CODE END Uart_Send */
 }
 
-/* USER CODE BEGIN Header_uart_recv */
+/* USER CODE BEGIN Header_Uart_Recv */
 /**
-* @brief Function implementing the t_uart_recv thread.
+* @brief Function implementing the t_Uart_Recv thread.
 * @param argument: Not used
 * @retval None
 */
-/* USER CODE END Header_uart_recv */
-__weak void uart_recv(void *argument)
+/* USER CODE END Header_Uart_Recv */
+__weak void Uart_Recv(void *argument)
 {
-  /* USER CODE BEGIN uart_recv */
+  /* USER CODE BEGIN Uart_Recv */
   /* Infinite loop */
   for(;;)
   {
     osDelay(1);
   }
-  /* USER CODE END uart_recv */
+  /* USER CODE END Uart_Recv */
 }
 
 /* Private application code --------------------------------------------------*/

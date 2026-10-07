@@ -5,7 +5,7 @@
 #include <stdlib.h>
 #include <string.h>
 
-/* 底层引脚操作宏 */
+/* ========== 底层引脚操作宏 ========== */
 #define TOUCH_CS_LOW()  HAL_GPIO_WritePin(TOUCH_CS_PORT, TOUCH_CS_PIN, GPIO_PIN_RESET)
 #define TOUCH_CS_HIGH() HAL_GPIO_WritePin(TOUCH_CS_PORT, TOUCH_CS_PIN, GPIO_PIN_SET)
 #define TOUCH_PEN()     (HAL_GPIO_ReadPin(TOUCH_PEN_PORT, TOUCH_PEN_PIN) == TOUCH_PEN_ACTIVE_LEVEL)
@@ -23,32 +23,32 @@
  * 校准数据 EEPROM 存储布局（共 17 字节）：
  * magic(4) | xfac(4) | yfac(4) | xoff(2) | yoff(2) | swap(1)
  */
-#define TOUCH_CAL_MAGIC 0x544F4348u // "TOCH"
-#define TOUCH_CAL_SIZE 17
+#define TOUCH_CAL_MAGIC 0x544F4348u /* "TOCH" */
+#define TOUCH_CAL_SIZE  17
 
-/* 触摸状态定义 */
+/* ========== 触摸状态定义 ========== */
 typedef enum {
     TOUCH_STATE_IDLE = 0,
     TOUCH_STATE_PRESSED,
 } TouchState_t;
 
-/* 触摸上下文结构体 */
+/* ========== 触摸上下文结构体 ========== */
 typedef struct {
-    TouchState_t state;  // 触摸状态
-    uint16_t last_x;     // 最后一次按下的屏幕坐标 X
-    uint16_t last_y;     // 最后一次按下的屏幕坐标 Y
-    uint16_t last_raw_x; // 最后一次按下的原始 AD 值 X
-    uint16_t last_raw_y; // 最后一次按下的原始 AD 值 Y
+    TouchState_t state;  /* 触摸状态 */
+    uint16_t last_x;     /* 最后一次按下的屏幕坐标 X */
+    uint16_t last_y;     /* 最后一次按下的屏幕坐标 Y */
+    uint16_t last_raw_x; /* 最后一次按下的原始 AD 值 X */
+    uint16_t last_raw_y; /* 最后一次按下的原始 AD 值 Y */
 } TouchContext_t;
 
-/* 内部变量 */
-static TouchContext_t s_touchCtx;
-static uint8_t s_initialized = 0;
-static TouchCal_t s_cal;              // 当前校准参数
-static uint8_t s_cmd_x = TOUCH_CMD_X; // X 轴读取命令（受 swap 影响）
-static uint8_t s_cmd_y = TOUCH_CMD_Y; // Y 轴读取命令
+/* ========== 内部变量 ========== */
+static TouchContext_t s_TouchCtx;
+static uint8_t s_Initialized = 0;
+static TouchCal_t s_Cal;                     /* 当前校准参数 */
+static uint8_t s_CmdX = TOUCH_CMD_X;         /* X 轴读取命令（受 swap 影响） */
+static uint8_t s_CmdY = TOUCH_CMD_Y;         /* Y 轴读取命令 */
 
-/* 内部函数声明 */
+/* ========== 内部函数声明 ========== */
 #if TOUCH_SPI_MODE == 0
 static void Touch_DelayUs(uint32_t us);
 static void Touch_WriteByte(uint8_t num);
@@ -79,10 +79,10 @@ static void Touch_EnablePortClk(GPIO_TypeDef *port)
 #ifdef GPIOI
     else if (port == GPIOI)
         __HAL_RCC_GPIOI_CLK_ENABLE();
-#endif
+#endif /* GPIOI */
 }
 
-/* SPI 底层操作 */
+/* ========== SPI 底层操作 ========== */
 #if TOUCH_SPI_MODE == 0
 /* 微秒级延时（DWT 周期计数器实现，与系统主频无关） */
 static void Touch_DelayUs(uint32_t us)
@@ -104,7 +104,7 @@ static void Touch_WriteByte(uint8_t num)
         num <<= 1;
         TOUCH_CLK_LOW();
         Touch_DelayUs(1);
-        TOUCH_CLK_HIGH(); // 上升沿有效
+        TOUCH_CLK_HIGH(); /* 上升沿有效 */
         Touch_DelayUs(1);
     }
 }
@@ -118,18 +118,18 @@ static uint16_t Touch_ReadAD(uint8_t cmd)
 
     TOUCH_CLK_LOW();
     TOUCH_MOSI_0();
-    TOUCH_CS_LOW(); // 选中触摸 IC
+    TOUCH_CS_LOW();         /* 选中触摸 IC */
 
-    Touch_WriteByte(cmd); // 发送读取命令
-    Touch_DelayUs(6);     // 等待 AD 转换（ADS7846 最长 6us）
+    Touch_WriteByte(cmd);   /* 发送读取命令 */
+    Touch_DelayUs(6);       /* 等待 AD 转换（ADS7846 最长 6us） */
 
     TOUCH_CLK_LOW();
     Touch_DelayUs(1);
-    TOUCH_CLK_HIGH(); // 一个时钟丢弃 BUSY 位
+    TOUCH_CLK_HIGH();       /* 一个时钟丢弃 BUSY 位 */
     Touch_DelayUs(1);
     TOUCH_CLK_LOW();
 
-    for (uint8_t i = 0; i < 16; i++) // 读取 16 位，仅高 12 位有效
+    for (uint8_t i = 0; i < 16; i++) /* 读取 16 位，仅高 12 位有效 */
     {
         val <<= 1;
         TOUCH_CLK_LOW();
@@ -140,7 +140,7 @@ static uint16_t Touch_ReadAD(uint8_t cmd)
     }
     val >>= 4;
 
-    TOUCH_CS_HIGH(); // 释放片选
+    TOUCH_CS_HIGH();        /* 释放片选 */
     return val;
 
 #else /* 硬件 SPI */
@@ -167,17 +167,13 @@ static uint16_t Touch_ReadXOY(uint8_t cmd)
 
     /* 冒泡排序（升序） */
     for (uint8_t i = 0; i < TOUCH_READ_TIMES - 1; i++)
-    {
         for (uint8_t j = i + 1; j < TOUCH_READ_TIMES; j++)
-        {
             if (buf[i] > buf[j])
             {
                 uint16_t temp = buf[i];
                 buf[i] = buf[j];
                 buf[j] = temp;
             }
-        }
-    }
 
     /* 去掉两端极值后求平均 */
     for (uint8_t i = TOUCH_LOST_VAL; i < TOUCH_READ_TIMES - TOUCH_LOST_VAL; i++)
@@ -194,10 +190,10 @@ TouchErr_t Touch_ReadRawXY(uint16_t *raw_x, uint16_t *raw_y)
     if (raw_x == NULL || raw_y == NULL)
         return TOUCH_ERR_PARAM;
 
-    x1 = Touch_ReadXOY(s_cmd_x);
-    y1 = Touch_ReadXOY(s_cmd_y);
-    x2 = Touch_ReadXOY(s_cmd_x);
-    y2 = Touch_ReadXOY(s_cmd_y);
+    x1 = Touch_ReadXOY(s_CmdX);
+    y1 = Touch_ReadXOY(s_CmdY);
+    x2 = Touch_ReadXOY(s_CmdX);
+    y2 = Touch_ReadXOY(s_CmdY);
 
     /* 两次读取偏差均需在允许范围内 */
     if (abs((int16_t)(x1 - x2)) > TOUCH_ERR_RANGE ||
@@ -214,13 +210,13 @@ static void Touch_UpdateCmdMap(uint8_t swap)
 {
     if (swap)
     {
-        s_cmd_x = TOUCH_CMD_Y;
-        s_cmd_y = TOUCH_CMD_X;
+        s_CmdX = TOUCH_CMD_Y;
+        s_CmdY = TOUCH_CMD_X;
     }
     else
     {
-        s_cmd_x = TOUCH_CMD_X;
-        s_cmd_y = TOUCH_CMD_Y;
+        s_CmdX = TOUCH_CMD_X;
+        s_CmdY = TOUCH_CMD_Y;
     }
 }
 
@@ -229,9 +225,9 @@ void Touch_SetCalibration(const TouchCal_t *cal)
 {
     if (cal == NULL)
         return;
-    s_cal = *cal;
-    s_cal.valid = 1;
-    Touch_UpdateCmdMap(s_cal.swap);
+    s_Cal = *cal;
+    s_Cal.valid = 1;
+    Touch_UpdateCmdMap(s_Cal.swap);
 }
 
 /* 获取当前校准参数 */
@@ -239,7 +235,7 @@ void Touch_GetCalibration(TouchCal_t *cal)
 {
     if (cal == NULL)
         return;
-    *cal = s_cal;
+    *cal = s_Cal;
 }
 
 /*
@@ -303,7 +299,8 @@ TouchErr_t Touch_CalcCalibrationEx(const uint16_t pos[4][2], const uint16_t tgt[
 }
 
 /* 全屏四角内缩 margin 布局的便捷包装（供 Touch_Adjust 使用） */
-TouchErr_t Touch_CalcCalibration(const uint16_t pos[4][2], uint16_t screen_w, uint16_t screen_h, uint16_t margin, TouchCal_t *cal)
+TouchErr_t Touch_CalcCalibration(const uint16_t pos[4][2], uint16_t screen_w, uint16_t screen_h,
+                                 uint16_t margin, TouchCal_t *cal)
 {
     uint16_t tgt[4][2];
 
@@ -311,13 +308,13 @@ TouchErr_t Touch_CalcCalibration(const uint16_t pos[4][2], uint16_t screen_w, ui
         return TOUCH_ERR_PARAM;
 
     tgt[0][0] = margin;
-    tgt[0][1] = margin;         // 左上
+    tgt[0][1] = margin;                 /* 左上 */
     tgt[1][0] = screen_w - margin;
-    tgt[1][1] = margin;         // 右上
+    tgt[1][1] = margin;                 /* 右上 */
     tgt[2][0] = margin;
-    tgt[2][1] = screen_h - margin; // 左下
+    tgt[2][1] = screen_h - margin;      /* 左下 */
     tgt[3][0] = screen_w - margin;
-    tgt[3][1] = screen_h - margin; // 右下
+    tgt[3][1] = screen_h - margin;      /* 右下 */
     return Touch_CalcCalibrationEx(pos, tgt, cal);
 }
 
@@ -332,19 +329,19 @@ TouchErr_t Touch_Adjust(uint16_t screen_w, uint16_t screen_h, uint16_t margin, T
     TouchCal_t cal;
     TouchErr_t ret;
     uint8_t retry;
-    uint8_t swap = s_cal.swap; // 轴交换标志（异常时自动翻转重试）
+    uint8_t swap = s_Cal.swap; /* 轴交换标志（异常时自动翻转重试） */
 
     if (get_point == NULL)
         return TOUCH_ERR_PARAM;
 
     px[0] = margin;
-    py[0] = margin; // 左上
+    py[0] = margin;                     /* 左上 */
     px[1] = screen_w - margin;
-    py[1] = margin; // 右上
+    py[1] = margin;                     /* 右上 */
     px[2] = margin;
-    py[2] = screen_h - margin; // 左下
+    py[2] = screen_h - margin;          /* 左下 */
     px[3] = screen_w - margin;
-    py[3] = screen_h - margin; // 右下
+    py[3] = screen_h - margin;          /* 右下 */
 
     for (retry = 0; retry < 2; retry++)
     {
@@ -352,14 +349,12 @@ TouchErr_t Touch_Adjust(uint16_t screen_w, uint16_t screen_h, uint16_t margin, T
 
         /* 依次采集 4 个校准点 */
         for (uint8_t i = 0; i < 4; i++)
-        {
             if (get_point(px[i], py[i], &pos[i][0], &pos[i][1]) == 0)
-                return TOUCH_ERR_NO_TOUCH; // 用户取消/超时
-        }
+                return TOUCH_ERR_NO_TOUCH; /* 用户取消/超时 */
 
         ret = Touch_CalcCalibration(pos, screen_w, screen_h, margin, &cal);
         if (ret != TOUCH_OK)
-            continue; // 采样质量不合格，重新采集
+            continue; /* 采样质量不合格，重新采集 */
 
         /* 系数异常说明触摸屏 X/Y 方向与屏幕相反，交换轴后重试 */
         if (fabsf(cal.xfac) > 2 || fabsf(cal.yfac) > 2)
@@ -377,30 +372,30 @@ TouchErr_t Touch_Adjust(uint16_t screen_w, uint16_t screen_h, uint16_t margin, T
     return TOUCH_ERR_CAL;
 }
 
-/* 校准参数 EEPROM 存储 */
+/* ========== 校准参数 EEPROM 存储 ========== */
 #if TOUCH_USE_EEPROM_CAL
 
-/* 将当前校准参数保存到 AT24C02 */
+/* 将当前校准参数保存到 AT24Cxx */
 TouchErr_t Touch_SaveCalibration(void)
 {
     uint8_t buf[TOUCH_CAL_SIZE];
     uint8_t idx = 0;
     uint32_t magic = TOUCH_CAL_MAGIC;
 
-    if (!s_cal.valid)
+    if (!s_Cal.valid)
         return TOUCH_ERR_CAL;
 
     memcpy(&buf[idx], &magic, 4);
     idx += 4;
-    memcpy(&buf[idx], &s_cal.xfac, 4);
+    memcpy(&buf[idx], &s_Cal.xfac, 4);
     idx += 4;
-    memcpy(&buf[idx], &s_cal.yfac, 4);
+    memcpy(&buf[idx], &s_Cal.yfac, 4);
     idx += 4;
-    memcpy(&buf[idx], &s_cal.xoff, 2);
+    memcpy(&buf[idx], &s_Cal.xoff, 2);
     idx += 2;
-    memcpy(&buf[idx], &s_cal.yoff, 2);
+    memcpy(&buf[idx], &s_Cal.yoff, 2);
     idx += 2;
-    buf[idx] = s_cal.swap;
+    buf[idx] = s_Cal.swap;
 
     if (TOUCH_EEPROM_WRITE(TOUCH_CAL_EEPROM_ADDR, buf, TOUCH_CAL_SIZE) != TOUCH_EEPROM_OK)
         return TOUCH_ERR_EEPROM;
@@ -408,7 +403,7 @@ TouchErr_t Touch_SaveCalibration(void)
     return TOUCH_OK;
 }
 
-/* 从 AT24C02 加载校准参数，TOUCH_ERR_CAL 表示尚未校准 */
+/* 从 AT24Cxx 加载校准参数，TOUCH_ERR_CAL 表示尚未校准 */
 TouchErr_t Touch_LoadCalibration(void)
 {
     uint8_t buf[TOUCH_CAL_SIZE];
@@ -422,7 +417,7 @@ TouchErr_t Touch_LoadCalibration(void)
     memcpy(&magic, &buf[idx], 4);
     idx += 4;
     if (magic != TOUCH_CAL_MAGIC)
-        return TOUCH_ERR_CAL; // 未校准过
+        return TOUCH_ERR_CAL; /* 未校准过 */
 
     memcpy(&cal.xfac, &buf[idx], 4);
     idx += 4;
@@ -454,13 +449,13 @@ TouchMsg_t Touch_Scan(void)
 {
     TouchMsg_t msg;
 
-    msg.x = s_touchCtx.last_x;
-    msg.y = s_touchCtx.last_y;
-    msg.raw_x = s_touchCtx.last_raw_x;
-    msg.raw_y = s_touchCtx.last_raw_y;
+    msg.x = s_TouchCtx.last_x;
+    msg.y = s_TouchCtx.last_y;
+    msg.raw_x = s_TouchCtx.last_raw_x;
+    msg.raw_y = s_TouchCtx.last_raw_y;
     msg.event = TOUCH_EVENT_NONE;
 
-    if (!s_initialized)
+    if (!s_Initialized)
         return msg;
 
     if (Touch_IsPressed())
@@ -468,15 +463,15 @@ TouchMsg_t Touch_Scan(void)
         uint16_t raw_x, raw_y;
 
         if (Touch_ReadRawXY(&raw_x, &raw_y) != TOUCH_OK)
-            return msg; // 读取失败，保持上一次状态
+            return msg; /* 读取失败，保持上一次状态 */
 
         msg.raw_x = raw_x;
         msg.raw_y = raw_y;
 
-        if (s_cal.valid)
+        if (s_Cal.valid)
         {
-            int32_t sx = (int32_t)(s_cal.xfac * raw_x + s_cal.xoff);
-            int32_t sy = (int32_t)(s_cal.yfac * raw_y + s_cal.yoff);
+            int32_t sx = (int32_t)(s_Cal.xfac * raw_x + s_Cal.xoff);
+            int32_t sy = (int32_t)(s_Cal.yfac * raw_y + s_Cal.yoff);
             if (sx < 0)
                 sx = 0;
             if (sy < 0)
@@ -491,36 +486,34 @@ TouchMsg_t Touch_Scan(void)
         }
 
         /* 按下边沿判定 */
-        if (s_touchCtx.state == TOUCH_STATE_PRESSED)
-        {
+        if (s_TouchCtx.state == TOUCH_STATE_PRESSED)
             msg.event = TOUCH_EVENT_PRESS_HOLD;
-        }
         else
         {
             msg.event = TOUCH_EVENT_PRESS_DOWN;
-            s_touchCtx.state = TOUCH_STATE_PRESSED;
+            s_TouchCtx.state = TOUCH_STATE_PRESSED;
         }
 
-        s_touchCtx.last_x = msg.x;
-        s_touchCtx.last_y = msg.y;
-        s_touchCtx.last_raw_x = raw_x;
-        s_touchCtx.last_raw_y = raw_y;
+        s_TouchCtx.last_x = msg.x;
+        s_TouchCtx.last_y = msg.y;
+        s_TouchCtx.last_raw_x = raw_x;
+        s_TouchCtx.last_raw_y = raw_y;
     }
     else
     {
         /* 释放边沿判定 */
-        if (s_touchCtx.state == TOUCH_STATE_PRESSED)
+        if (s_TouchCtx.state == TOUCH_STATE_PRESSED)
         {
             msg.event = TOUCH_EVENT_PRESS_UP;
-            s_touchCtx.state = TOUCH_STATE_IDLE;
+            s_TouchCtx.state = TOUCH_STATE_IDLE;
         }
     }
 
     return msg;
 }
 
-/* 初始化触摸（软件 SPI 模式配置 5 个 GPIO；硬件 SPI 模式仅配置 CS 与 PEN，SPI 由 CubeMX 初始化） */
-/* 电阻屏无器件 ID 可读，初始化本身无法检测失败，故无返回值；校准是否有效用 Touch_GetCalibration() 查询 cal.valid */
+/* 初始化触摸（软件 SPI 模式配置 5 个 GPIO；硬件 SPI 模式仅配置 CS 与 PEN，SPI 由 CubeMX 初始化）
+ * 电阻屏无器件 ID 可读，初始化本身无法检测失败，故无返回值；校准是否有效用 Touch_GetCalibration() 查询 cal.valid */
 void Touch_Init(void)
 {
     GPIO_InitTypeDef gpio = {0};
@@ -575,13 +568,13 @@ void Touch_Init(void)
     }
 
 #if TOUCH_USE_EEPROM_CAL
-    Touch_LoadCalibration(); // 加载校准参数（失败表示未校准过）
+    Touch_LoadCalibration(); /* 加载校准参数（失败表示未校准过） */
 #endif
 
-    s_touchCtx.state = TOUCH_STATE_IDLE;
-    s_touchCtx.last_x = 0;
-    s_touchCtx.last_y = 0;
-    s_touchCtx.last_raw_x = 0;
-    s_touchCtx.last_raw_y = 0;
-    s_initialized = 1;
+    s_TouchCtx.state = TOUCH_STATE_IDLE;
+    s_TouchCtx.last_x = 0;
+    s_TouchCtx.last_y = 0;
+    s_TouchCtx.last_raw_x = 0;
+    s_TouchCtx.last_raw_y = 0;
+    s_Initialized = 1;
 }
